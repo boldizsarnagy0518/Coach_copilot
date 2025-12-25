@@ -56,8 +56,7 @@ dmypy.json
 # Jupyter
 .ipynb_checkpoints/
 
-# ChromaDB data (optional - uncomment to ignore)
-# data/chroma_db/
+data/chroma_db/
 
 # Google credentials (NEVER commit these!)
 credentials/
@@ -72,8 +71,4 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Project specific
-# Note: data/rules and data/notes files are tracked for development
-# If you want to ignore them, uncomment the lines below:
-# data/rules/*.pdf
-# data/notes/*.md
+

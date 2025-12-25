@@ -54,8 +54,3 @@ To ensure the highest level of reliability and "intelligence," the project utili
 4. **Tool Executor:** Executes Python code for math or API calls for Google Sheets.  
 5. **Multimodal Output Node:** Constructs a response containing human-like coaching advice, updated sheet links, and relevant YouTube tutorial cards.
 
-## **5\. Why This Wins**
-
-* **Personalization:** It’s not a generic AI; it’s *your* methodology.  
-* **Data Integrity:** As a Data Engineer, you ensure the AI doesn't hallucinate math; it calculates it.  
-* **Efficiency:** It handles the 90% of repetitive admin tasks (moving dates, calculating weights), letting you focus on the 10% of high-level coaching.
