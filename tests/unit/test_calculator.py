@@ -10,7 +10,6 @@ import pytest
 from src.tools.calculator import (
     E1RMFormula,
     PlateCalculator,
-    PowerliftingCalculator,
     calculate_e1rm,
     calculate_ipf_gl,
     calculate_plates,
@@ -132,8 +131,12 @@ class TestIPFGLCalculator:
 
     def test_ipf_gl_equipped_higher_than_raw(self, calculator):
         """Same total should give lower points for equipped (higher standards)."""
-        raw = calculator.ipf_gl(total=500, bodyweight=83, gender="male", is_equipped=False)
-        equipped = calculator.ipf_gl(total=500, bodyweight=83, gender="male", is_equipped=True)
+        raw = calculator.ipf_gl(
+            total=500, bodyweight=83, gender="male", is_equipped=False
+        )
+        equipped = calculator.ipf_gl(
+            total=500, bodyweight=83, gender="male", is_equipped=True
+        )
         # Equipped has different coefficients - points comparison depends on formula
         assert equipped.is_equipped is True
         assert raw.is_equipped is False

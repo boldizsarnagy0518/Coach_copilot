@@ -4,7 +4,6 @@ Unit tests for the LangGraph agent system.
 Tests intent classification, node functions, and graph flow.
 """
 
-
 from src.agents.state import AgentState, IntentType, create_initial_state
 from src.agents.nodes.analyzer import analyze_intent, classify_intent
 from src.agents.nodes.action import (
@@ -42,18 +41,26 @@ class TestIntentClassification:
 
     def test_classify_ipf_rules(self):
         """IPF rule questions should be instructional."""
-        assert classify_intent("What is the IPF squat depth rule?") == IntentType.INSTRUCTIONAL
+        assert (
+            classify_intent("What is the IPF squat depth rule?")
+            == IntentType.INSTRUCTIONAL
+        )
         assert classify_intent("Is this lift legal?") == IntentType.INSTRUCTIONAL
 
     def test_classify_technique(self):
         """Technique questions should be instructional."""
         assert classify_intent("How do I fix squat depth?") == IntentType.INSTRUCTIONAL
-        assert classify_intent("What cue should I use for bench?") == IntentType.INSTRUCTIONAL
+        assert (
+            classify_intent("What cue should I use for bench?")
+            == IntentType.INSTRUCTIONAL
+        )
 
     def test_classify_schedule(self):
         """Schedule questions should be administrative."""
         assert classify_intent("Reschedule my training") == IntentType.ADMINISTRATIVE
-        assert classify_intent("Update my plan for next week") == IntentType.ADMINISTRATIVE
+        assert (
+            classify_intent("Update my plan for next week") == IntentType.ADMINISTRATIVE
+        )
 
     def test_classify_greetings(self):
         """Greetings should be conversational."""

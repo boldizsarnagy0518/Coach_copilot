@@ -4,7 +4,6 @@ Unit tests for Google Sheets integration.
 Tests the SheetsClient with mocked gspread API.
 """
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -41,7 +40,7 @@ class TestSheetsClient:
         creds = tmp_path / "creds.json"
         creds.touch()
 
-        client = SheetsClient(
+        _client = SheetsClient(
             credentials_file=creds,
             spreadsheet_id=None,
         )
@@ -120,7 +119,9 @@ class TestSheetsClient:
         )
         client.append_row(["value1", "value2", "value3"])
 
-        mock_worksheet.append_row.assert_called_once_with(["value1", "value2", "value3"])
+        mock_worksheet.append_row.assert_called_once_with(
+            ["value1", "value2", "value3"]
+        )
 
     @patch("src.tools.sheets.gspread")
     @patch("src.tools.sheets.Credentials")

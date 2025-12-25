@@ -72,7 +72,10 @@ class TestMarkdownLoader:
         docs = loader.load_file(md_file)
 
         assert len(docs) >= 1
-        assert "test" in docs[0].page_content.lower() or "heading" in docs[0].page_content.lower()
+        assert (
+            "test" in docs[0].page_content.lower()
+            or "heading" in docs[0].page_content.lower()
+        )
         assert docs[0].metadata["source_type"] == "markdown"
         assert docs[0].metadata["topic"] == "test"
 

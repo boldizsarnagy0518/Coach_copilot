@@ -9,7 +9,7 @@ COPY pyproject.toml .
 RUN uv sync --system --group dev
 
 COPY src/ src/
-COPY .env.example .
+
 
 EXPOSE 8080
 

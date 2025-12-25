@@ -35,12 +35,12 @@ The system uses a **State Graph** architecture rather than a linear chain:
 
 ### Tech Stack
 
-*   **Orchestration**: `LangGraph`, `LangChain`
-*   **LLM**: `Ollama` (Llama 3) / `Gemini 1.5 Pro`
-*   **Vector Query**: `ChromaDB`
-*   **Frontend**: `NiceGUI`
-*   **Package Manager**: `uv` (Astral)
-*   **Search**: `DuckDuckGo`
+* **Orchestration**: `LangGraph`, `LangChain`
+* **LLM**: `Ollama` (Llama 3) / `Gemini 1.5 Pro`
+* **Vector Query**: `ChromaDB`
+* **Frontend**: `NiceGUI`
+* **Package Manager**: `uv` (Astral)
+* **Search**: `DuckDuckGo`
 
 ## 📦 Installation
 
@@ -79,6 +79,7 @@ src/
 ```
 
 Running tests:
+
 ```bash
 uv run pytest
 ```
