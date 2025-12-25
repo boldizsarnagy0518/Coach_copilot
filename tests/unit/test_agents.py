@@ -4,7 +4,6 @@ Unit tests for the LangGraph agent system.
 Tests intent classification, node functions, and graph flow.
 """
 
-import pytest
 
 from src.agents.state import AgentState, IntentType, create_initial_state
 from src.agents.nodes.analyzer import analyze_intent, classify_intent

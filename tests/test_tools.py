@@ -1,6 +1,5 @@
 """Simple tests."""
 
-import pytest
 from src.tools import e1rm, ipf_gl, plates
 
 

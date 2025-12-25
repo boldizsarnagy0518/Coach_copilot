@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 from nicegui import ui
-from src.agent import chat
+from src.agent.runner import chat
 from src.rag import create_chat_vectorstore, load_pdf, load_text
 from src.sheets import get_sheets_client, get_newest_sheet, read_sheet
 

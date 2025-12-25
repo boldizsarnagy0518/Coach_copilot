@@ -1,117 +1,87 @@
-# Coach Copilot 🏋️
+# Coach Copilot 🏋️‍♂️
 
-AI-powered Powerlifting Coach Assistant with RAG and LangGraph.
+**AI-powered Powerlifting Coach Assistant** built with **LangGraph**, **RAG**, and **NiceGUI**.
 
-## Features
+Coach Copilot is not just a chatbot; it's an **agentic system** that acts as a personalized powerlifting coach. It plans responses, retrieves knowledge from your trusted sources (PDFs, YouTube), validates relevance, and falls back to web search when necessary.
 
-- **E1RM Calculator**: Estimate your 1 rep max using multiple formulas (Epley, Brzycki, etc.)
-- **Wilks & IPF GL Scoring**: Compare lifters across weight classes
-- **Plate Calculator**: Know exactly what plates to load
-- **RAG-powered Knowledge**: Access IPF rules and coaching notes
-- **YouTube Integration**: Search your tutorial transcripts
-- **Google Sheets**: Read and write training logs
+![Agent Graph](agent_graph.png)
 
-## Tech Stack
+## 🚀 Key Features
 
-| Component | Technology |
-|-----------|------------|
-| Package Manager | UV |
-| Orchestration | LangGraph |
-| Vector Store | ChromaDB |
-| LLM (Local) | Ollama |
-| LLM (API) | Gemini 2.0 |
-| Frontend | NiceGUI + FastAPI |
+* **🧠 Agentic Workflow (LangGraph)**:
+  * **Planning**: Deconstructs complex user queries into an execution plan.
+  * **Hybrid RAG**: Retrieves technical knowledge from local documents and YouTube transcripts.
+  * **Self-Correction**: Grading node evaluates document relevance to prevent hallucinations.
+  * **Web Search**: Falls back to DuckDuckGo for up-to-date information (e.g., "latest IPF rule changes").
+* **📊 Data Integration**:
+  * **Google Sheets**: Reads your actual training logs (Cycle/Block logic) to give context-aware advice.
+  * **YouTube**: Indexes transcripts from coaching videos for style and knowledge alignment.
+* **🛠️ Technical Tools**:
+  * **Calculators**: Built-in 1RM, IPF GL Points, and Plate Loading tools.
+  * **Memory**: Persists chat history for conversational continuity.
+* **🎨 Modern UI**:
+  * Built with **NiceGUI** (Python-only frontend).
+  * Dark mode aesthetic with responsive design.
 
-## Quick Start
+## 🏗️ Architecture
 
-### Prerequisites
+The system uses a **State Graph** architecture rather than a linear chain:
 
-- Python 3.11+
-- [UV](https://docs.astral.sh/uv/) (package manager)
-- [Ollama](https://ollama.ai) (for local LLM)
+1. **Plan**: Analyze the user's request.
+2. **Retrieve**: Fetch relevant chunks from ChromaDB.
+3. **Grade**: LLM evaluates if chunks answer the question.
+   * *If Relevant* → **Generate** answer.
+   * *If Irrelevant* → **Web Search** → **Generate** answer.
 
-### Installation
+### Tech Stack
+
+*   **Orchestration**: `LangGraph`, `LangChain`
+*   **LLM**: `Ollama` (Llama 3) / `Gemini 1.5 Pro`
+*   **Vector Query**: `ChromaDB`
+*   **Frontend**: `NiceGUI`
+*   **Package Manager**: `uv` (Astral)
+*   **Search**: `DuckDuckGo`
+
+## 📦 Installation
+
+This project uses `uv` for lightning-fast dependency management.
 
 ```bash
-# Install dependencies
+# 1. Clone the repository
+git clone https://github.com/yourusername/coach-copilot.git
+
+# 2. Install dependencies
 uv sync
 
-# Copy environment template
+# 3. Set up environment
+# Create .env file with your API keys (Gemini, etc.)
 cp .env.example .env
 
-# Pull Ollama model (for development)
-ollama pull llama3.2
-```
-
-### Configuration
-
-Edit `.env` to configure your LLM provider:
-
-```bash
-# Development (local, free)
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=llama3.2
-
-# Production (API)
-LLM_PROVIDER=gemini
-GEMINI_API_KEY=your-api-key
-```
-
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=src --cov-report=html
-```
-
-### Running the Application
-
-```bash
-# Start the UI
+# 4. Run the app
 uv run coach
 ```
 
-## Project Structure
+Open [http://localhost:8080](http://localhost:8080) to start coaching.
+
+## 🧪 Development
+
+The project is structured for modularity and scalability:
 
 ```
-Coach_copilot/
-├── src/
-│   ├── core/       # Configuration & settings
-│   ├── llm/        # LLM provider abstraction
-│   ├── tools/      # Powerlifting calculators
-│   ├── rag/        # RAG system (ChromaDB)
-│   ├── agents/     # LangGraph workflows
-│   └── ui/         # NiceGUI frontend
-├── tests/          # Unit & integration tests
-├── data/           # PDFs, notes, vector store
-└── docs/           # Documentation
+src/
+├── agent/          # LangGraph agent logic
+│   ├── graph.py    # State machine definition
+│   ├── nodes.py    # Retrieval, Grading, Planning nodes
+│   └── state.py    # Pydantic state schema
+├── ui/             # NiceGUI frontend
+├── tools.py        # Powerlifting calculators
+└── rag.py          # Vector store management
 ```
 
-## Calculator Examples
-
-```python
-from src.tools import calculate_e1rm, calculate_wilks, calculate_plates
-
-# E1RM from 5 reps
-result = calculate_e1rm(weight=140, reps=5)
-print(result)  # E1RM: 163.33kg
-
-# Wilks score
-wilks = calculate_wilks(total=600, bodyweight=83, gender="male")
-print(wilks)  # Wilks: 388.xx
-
-# Plate loading
-plates = calculate_plates(target_weight=180)
-print(plates)  # Load: 2×20kg, 1×10kg, 1×5kg per side
+Running tests:
+```bash
+uv run pytest
 ```
 
-## Documentation
-
-See the `Architecture.md` for detailed system design and the `context.md` files in each module for implementation details.
-
-## License
-
-MIT
+---
+*Built by [Boldizsár Nagy](https://www.linkedin.com/in/boldizsarnagy/)*

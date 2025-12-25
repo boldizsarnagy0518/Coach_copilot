@@ -59,7 +59,24 @@ def read_sheet(spreadsheet, sheet_name: str = None) -> list[dict]:
         return []
 
     worksheet = spreadsheet.worksheet(sheet_name)
-    return worksheet.get_all_records()
+
+    # get_all_records() fails if headers have duplicates (even empty strings)
+    # So we use get_all_values() and parse manually
+    try:
+        rows = worksheet.get_all_values()
+        if not rows:
+            return []
+
+        headers = rows[0]
+        data = []
+        for row in rows[1:]:
+            # Zip headers with row values, ignoring empty headers
+            item = {h: val for h, val in zip(headers, row) if h.strip()}
+            data.append(item)
+        return data
+    except Exception as e:
+        print(f"Error reading sheet: {e}")
+        return []
 
 
 def append_row(spreadsheet, values: list, sheet_name: str = None):

@@ -4,7 +4,7 @@ AI-powered Powerlifting Coach Assistant
 
 ## Architecture
 
-```
+```text
 src/
 ├── config.py    # Settings (Pydantic)
 ├── llm.py       # LLM providers (Ollama/Gemini)
@@ -12,7 +12,10 @@ src/
 ├── rag.py       # Vector store (ChromaDB)
 ├── youtube.py   # YouTube transcript loader
 ├── sheets.py    # Google Sheets (CnumberBnumber logic)
-├── agent.py     # Chat logic (few-shot prompting)
+├── agent/       # LangGraph agent
+│   ├── graph.py # State machine
+│   ├── nodes.py # Logic steps
+│   └── state.py # Pydantic state
 └── app.py       # NiceGUI web UI
 ```
 
@@ -29,8 +32,8 @@ src/
 
 ## Features
 
-- Chat with powerlifting coach persona
-- Few-shot prompting for consistent responses
+- **Agentic RAG** (Plan -> Retrieve -> Grade -> Generate)
+- Web search fallback
 - Document upload (PDF, TXT, MD) per chat session
 - YouTube transcript indexing
 - Google Sheets integration with CnumberBnumber ordering
@@ -39,6 +42,7 @@ src/
 ## CnumberBnumber Logic
 
 For Google Sheets, newest sheet is determined by:
+
 - C (cycle) > B (block)
 - C3B1 is newer than C2B10
 - C3B6 is newer than C3B4
@@ -50,5 +54,4 @@ uv sync --group dev
 uv run coach
 ```
 
-Opens at http://localhost:8080
-
+Opens at <http://localhost:8080>

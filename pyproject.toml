@@ -17,6 +17,8 @@ dependencies = [
     "youtube-transcript-api>=0.6.0",
     "gspread>=6.0.0",
     "google-auth>=2.0.0",
+    "langgraph>=0.2.0",
+    "duckduckgo-search>=6.0.0",
 ]
 
 [project.optional-dependencies]
