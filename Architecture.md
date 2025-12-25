@@ -1,39 +1,54 @@
-# Coach Copilot - Main Architecture (Living Document)
+# Coach Copilot
 
-This is the "Single Source of Truth" for the project. The Agent is required to update this file after every significant structural or logical change.
+AI-powered Powerlifting Coach Assistant
 
-## 1. System Objective
+## Architecture
 
-To create an autonomous Powerlifting Coach Agent that operates at the intersection of biomechanical laws (math), official federation regulations (RAG), and individualized training data (Google Sheets).
+```
+src/
+├── config.py    # Settings (Pydantic)
+├── llm.py       # LLM providers (Ollama/Gemini)
+├── tools.py     # Calculators (E1RM, IPF GL, Plates)
+├── rag.py       # Vector store (ChromaDB)
+├── youtube.py   # YouTube transcript loader
+├── sheets.py    # Google Sheets (CnumberBnumber logic)
+├── agent.py     # Chat logic (few-shot prompting)
+└── app.py       # NiceGUI web UI
+```
 
-## 2. Modern Tech Stack (2025/2026)
+## Tech Stack
 
-Orchestration: LangGraph (State-based Agentic Workflows).
+| Component | Technology |
+|-----------|------------|
+| LLM | Ollama (dev) / Gemini (prod) |
+| Embeddings | Ollama / Gemini |
+| Vector Store | ChromaDB |
+| UI | NiceGUI (includes FastAPI) |
+| YouTube | youtube-transcript-api |
+| Sheets | gspread + google-auth |
 
-Primary LLM: Gemini 2.0 Pro/Flash (for Google Ecosystem synergy & massive context).
+## Features
 
-Package Management: uv (Fast, Rust-based Python manager).
+- Chat with powerlifting coach persona
+- Few-shot prompting for consistent responses
+- Document upload (PDF, TXT, MD) per chat session
+- YouTube transcript indexing
+- Google Sheets integration with CnumberBnumber ordering
+- Calculators: E1RM, IPF GL Points, Plate loading
 
-Environment: Documentation-Driven Development (Context provided via .md files).
+## CnumberBnumber Logic
 
-Integrations: Google Sheets API, YouTube Transcript Loader, Multi-source Vector Store.
+For Google Sheets, newest sheet is determined by:
+- C (cycle) > B (block)
+- C3B1 is newer than C2B10
+- C3B6 is newer than C3B4
 
-## 3. Agentic Workflow (The Loop)
+## Run
 
-[Analyzer Node]: Parses user intent (Instructional, Mathematical, or Administrative).
+```bash
+uv sync --group dev
+uv run coach
+```
 
-[Context Fetcher]: Loads relevant context_*.md files and external API data.
+Opens at http://localhost:8080
 
-[Reasoner/Expert Node]: Processes data based on the "Coach Persona" and domain knowledge.
-
-[Action/Tool Node]: Executes Python code (1RM Calc) or API writes (G-Sheets updates).
-
-[Documenter Node]: Synchronizes changes back to the Markdown architecture files.
-
-## 4. Context Map
-
-context_sheets.md: Mapping of the Spreadsheet schema and cell logic.
-
-context_rag.md: Status of vector indices (IPF rules, coaching notes).
-
-context_youtube.md: Index of video tutorials and transcript embeddings.
