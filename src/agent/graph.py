@@ -2,6 +2,7 @@
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
+from langchain_core.messages import ToolMessage, HumanMessage
 from src.agent.state import AgentState
 from src.agent.nodes import (
     retrieve,
@@ -17,6 +18,17 @@ from src.tools import ALL_TOOLS
 def should_use_tools(state: AgentState) -> str:
     """Decide if we need to call tools or go to generate."""
     messages = state.chat_history
+
+    tool_count = 0
+    for m in reversed(messages):
+        if isinstance(m, HumanMessage):
+            break
+        if isinstance(m, ToolMessage):
+            tool_count += 1
+
+    if tool_count > 3:
+        return "generate"
+
     if messages and hasattr(messages[-1], "tool_calls") and messages[-1].tool_calls:
         return "tools"
     return "generate"
@@ -26,10 +38,8 @@ def build_graph():
     """Build the agent workflow graph."""
     workflow = StateGraph(AgentState)
 
-    # Create tool node
-    tool_node = ToolNode(ALL_TOOLS)
+    tool_node = ToolNode(ALL_TOOLS, messages_key="chat_history")
 
-    # Nodes
     workflow.add_node("classify", classify_input)
     workflow.add_node("plan", plan_step)
     workflow.add_node("retrieve", retrieve)
@@ -38,14 +48,12 @@ def build_graph():
     workflow.add_node("tools", tool_node)
     workflow.add_node("generate", generate)
 
-    # Entry point - classify first
     workflow.set_entry_point("classify")
 
-    # Route based on classification
     def route_by_type(state: AgentState):
         if state.input_type == "command":
-            return "agent"  # Skip RAG, go to tools
-        return "plan"  # Question → full RAG path
+            return "agent"
+        return "plan"
 
     workflow.add_conditional_edges(
         "classify",

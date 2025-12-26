@@ -12,12 +12,14 @@ class Settings(BaseSettings):
 
     # LLM
     llm_provider: Literal["ollama", "gemini"] = "ollama"
+
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen2.5:7b"
     ollama_fast_model: str = "qwen2.5:0.5b"
+
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-1.5-pro"
-    gemini_fast_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3-flash-preview"
+    gemini_fast_model: str = "gemini-2.5-flash"
 
     # Embeddings
     embedding_provider: Literal["ollama", "gemini"] = "ollama"
@@ -28,8 +30,21 @@ class Settings(BaseSettings):
     chroma_persist_directory: Path = Path("./data/chroma_db")
 
     # Google Sheets
-    google_sheets_credentials_path: str | None = None
+    google_sheets_credentials_path: str | None = "secrets/credentials.json"
     google_sheets_spreadsheet_id: str | None = None
+
+    @property
+    def credentials_path(self) -> Path:
+        """Resolve absolute path to credentials."""
+        if not self.google_sheets_credentials_path:
+            return Path("secrets/credentials.json")
+
+        # Try finding it relative to current working directory first
+        cwd_path = Path.cwd() / self.google_sheets_credentials_path
+        if cwd_path.exists():
+            return cwd_path
+        # Fallback to absolute path provided
+        return Path(self.google_sheets_credentials_path)
 
     # Athlete PINs (JSON format: {"Boldi": "1234", "John": "5678"})
     athlete_pins: str = "{}"

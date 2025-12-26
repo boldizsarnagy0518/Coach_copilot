@@ -34,7 +34,9 @@ class UpdateCellInput(BaseModel):
 
 def get_sheets_client(credentials_path: str = None, spreadsheet_id: str = None):
     """Get authenticated Sheets client."""
-    creds_path = Path(credentials_path or settings.google_sheets_credentials_path or "")
+    creds_path = (
+        Path(credentials_path) if credentials_path else settings.credentials_path
+    )
     sheet_id = spreadsheet_id or settings.google_sheets_spreadsheet_id
 
     if not creds_path.exists():
@@ -42,12 +44,34 @@ def get_sheets_client(credentials_path: str = None, spreadsheet_id: str = None):
 
     creds = Credentials.from_service_account_file(str(creds_path), scopes=SCOPES)
     client = gspread.authorize(creds)
-    return client.open_by_key(sheet_id) if sheet_id else None
+
+    # If ID provided, use it
+    if sheet_id:
+        return client.open_by_key(sheet_id)
+
+    # Fallback: List spreadsheets and pick the first one (or 'Boldi' if found)
+    try:
+        sheets = client.openall()
+        if not sheets:
+            return None
+
+        # Try to find one matching "Boldi" or "Training"
+        for sheet in sheets:
+            if "boldi" in sheet.title.lower() or "training" in sheet.title.lower():
+                return sheet
+
+        # Default to the first one
+        return sheets[0]
+    except Exception as e:
+        print(f"Error auto-discovering sheet: {e}")
+        return None
 
 
 def get_gspread_client(credentials_path: str = None):
     """Get raw gspread client (for listing all spreadsheets)."""
-    creds_path = Path(credentials_path or settings.google_sheets_credentials_path or "")
+    creds_path = (
+        Path(credentials_path) if credentials_path else settings.credentials_path
+    )
 
     if not creds_path.exists():
         return None

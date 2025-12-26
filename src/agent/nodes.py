@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
+
 from langchain_community.tools import DuckDuckGoSearchRun
 
 from src.llm import get_llm, get_fast_llm
@@ -12,6 +13,22 @@ from src.tools import ALL_TOOLS
 
 
 web_search_tool = DuckDuckGoSearchRun()
+
+
+def _extract_text(content) -> str:
+    """Helper to extract text from LLM response (handling string or list)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        # Gemini 3.0 can return list of content parts
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and "text" in part:
+                text_parts.append(part["text"])
+            elif isinstance(part, str):
+                text_parts.append(part)
+        return "".join(text_parts)
+    return str(content)
 
 
 class InputClassification(BaseModel):
@@ -29,16 +46,16 @@ def classify_input(state: AgentState) -> dict:
 
     llm = get_fast_llm().with_structured_output(InputClassification)
 
-    prompt = f"""Classify this user input for a powerlifting coach assistant:
+    prompt_text = f"""Classify this user input for a powerlifting coach assistant:
 
 "{state.input}"
 
 Answer:
-- needs_rag=True: Questions about training plans, techniques, rules, advice
-- needs_rag=False: Direct commands like "calculate E1RM", "what plates for 180kg", "IPF points"
+- needs_rag=True: Questions about training plans, techniques, rules, advice, or retrieval from documents
+- needs_rag=False: Direct commands, greetings, small talk, or simple calculation requests
 """
-
-    result = llm.invoke(prompt)
+    messages = [HumanMessage(content=prompt_text)]
+    result = llm.invoke(messages)
     print(f"Classification: {result}")
 
     input_type = "question" if result.needs_rag else "command"
@@ -63,7 +80,12 @@ SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.
 1. User's uploaded documents and training logs
 2. Personal notes and video transcripts from context
 3. IPF rulebook and general powerlifting knowledge
-4. Web search results (if other sources insufficient)"""
+4. Web search results (if other sources insufficient)
+
+## Tool Usage Guidelines
+- If a tool returns "No training data found" or an error, **DO NOT** call the same tool again with the same arguments.
+- If you have already called a tool and got a result, use that result to formulate your answer. **Do not call the tool again.**
+- Do not loop. If you are stuck, ask the user for clarification."""
 
 PLAN_PROMPT = """You are a powerlifting coach planning how to answer a user's request.
 
@@ -111,9 +133,8 @@ def plan_step(state: AgentState) -> dict:
         )
         | llm
     )
-
     response = planner.invoke({"question": question})
-    return {"plan": response.content}
+    return {"plan": _extract_text(response.content)}
 
 
 def retrieve(state: AgentState) -> dict:
@@ -171,7 +192,7 @@ def grade_documents(state: AgentState) -> dict:
 
     grader = grader_prompt | llm
     response = grader.invoke({"question": question, "context": context})
-    score = response.content.strip().lower()
+    score = _extract_text(response.content).strip().lower()
 
     if score == "yes":
         print("---DOCUMENTS RELEVANT---")
@@ -223,7 +244,7 @@ def generate(state: AgentState) -> dict:
     )
 
     response = llm.invoke(messages)
-    return {"answer": response.content}
+    return {"answer": _extract_text(response.content)}
 
 
 def agent_with_tools(state: AgentState) -> dict:
@@ -272,4 +293,4 @@ Use tools when you need specific calculations or data. If you have enough contex
         return {"chat_history": list(history) + [response]}
 
     # If no tool calls, return the answer directly
-    return {"answer": response.content}
+    return {"answer": _extract_text(response.content)}
