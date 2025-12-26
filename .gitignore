@@ -56,12 +56,12 @@ dmypy.json
 # Jupyter
 .ipynb_checkpoints/
 
+# Data
 data/chroma_db/
 
-# Google credentials (NEVER commit these!)
-credentials/
+# Secrets
+secrets/
 *.json
-!pyproject.json
 
 # Logs
 *.log
