@@ -4,9 +4,6 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 
-# --- Pydantic Schemas for Structured Input ---
-
-
 class E1RMInput(BaseModel):
     """Input for E1RM calculation."""
 
@@ -27,9 +24,6 @@ class PlatesInput(BaseModel):
 
     target: float = Field(description="Target weight in kg")
     bar: float = Field(default=20.0, description="Bar weight in kg (default 20kg)")
-
-
-# --- Tool Functions ---
 
 
 @tool(args_schema=E1RMInput)
@@ -77,9 +71,6 @@ def calculate_plates(target: float, bar: float = 20.0) -> str:
     return f"Per side: {plate_str}. Actual total: {actual}kg (target: {target}kg)"
 
 
-# --- Legacy functions for backwards compatibility ---
-
-
 def e1rm(weight: float, reps: int) -> float:
     """Epley formula: weight * (1 + reps/30)"""
     if reps == 1:
@@ -116,5 +107,4 @@ def plates(target: float, bar: float = 20.0) -> dict:
     return {"plates": result, "actual": actual}
 
 
-# Export all tools
 ALL_TOOLS = [calculate_e1rm, calculate_ipf_gl, calculate_plates]

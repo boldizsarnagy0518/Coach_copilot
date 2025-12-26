@@ -17,9 +17,6 @@ CHANNEL_URL = settings.youtube_channel_url or "https://www.youtube.com/@boldinag
 CHANNEL_HANDLE = "@boldinagy"
 
 
-# --- Pydantic Schemas ---
-
-
 class YouTubeVideoInput(BaseModel):
     """Input for loading a YouTube video."""
 
@@ -30,9 +27,6 @@ class YouTubeSearchInput(BaseModel):
     """Input for searching YouTube."""
 
     query: str = Field(description="Search query for YouTube videos")
-
-
-# --- Helper Functions ---
 
 
 def extract_video_id(url: str) -> str:
@@ -64,9 +58,6 @@ def load_youtube(url: str, languages: list[str] = None) -> list[Document]:
         metadata={"source": f"youtube:{video_id}", "type": "video"},
     )
     return _splitter.split_documents([doc])
-
-
-# --- Tool Functions ---
 
 
 @tool(args_schema=YouTubeVideoInput)
@@ -107,5 +98,4 @@ def suggest_youtube_search(query: str) -> str:
 Tip: Check {CHANNEL_HANDLE} first for specific powerlifting technique guidance."""
 
 
-# Export all tools
 ALL_TOOLS = [load_youtube_transcript, get_coach_channel_info, suggest_youtube_search]

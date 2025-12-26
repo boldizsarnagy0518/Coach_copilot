@@ -1,6 +1,6 @@
 """Simple tests."""
 
-from src.tools import e1rm, ipf_gl, plates
+from src.tools.calculators import e1rm, ipf_gl, plates
 
 
 def test_e1rm():

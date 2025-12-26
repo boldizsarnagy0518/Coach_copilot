@@ -16,9 +16,6 @@ SCOPES = [
 ]
 
 
-# --- Pydantic Schemas ---
-
-
 class ReadSheetInput(BaseModel):
     """Input for reading a sheet."""
 
@@ -33,9 +30,6 @@ class UpdateCellInput(BaseModel):
     cell: str = Field(description="Cell reference like 'A1' or 'B5'")
     value: str = Field(description="Value to write")
     sheet_name: str = Field(default="", description="Sheet name, empty for newest")
-
-
-# --- Helper Functions ---
 
 
 def get_sheets_client(credentials_path: str = None, spreadsheet_id: str = None):
@@ -134,9 +128,6 @@ def read_sheet(spreadsheet, sheet_name: str = None) -> list[dict]:
         return []
 
 
-# --- Tool Functions ---
-
-
 @tool(args_schema=ReadSheetInput)
 def read_training_sheet(sheet_name: str = "") -> str:
     """Read training data from Google Sheets. Use when user asks about their workout, training plan, or schedule."""
@@ -193,5 +184,4 @@ def list_training_sheets() -> str:
     )
 
 
-# Export all tools
 ALL_TOOLS = [read_training_sheet, update_training_cell, list_training_sheets]
