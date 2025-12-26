@@ -52,8 +52,8 @@ def classify_input(state: AgentState) -> dict:
 
 Classify as ONE of:
 - input_type='greeting': Greetings (hello, hi, hey), thanks, goodbye, small talk, emojis only
-- input_type='command': Calculations, sheet operations, YouTube lookups, direct requests
-- input_type='question': Questions needing knowledge lookup (training advice, rules, technique)
+- input_type='command': Requests about USER'S OWN DATA (training blocks, sheets, workouts, "my training", "my last session"), calculations, YouTube lookups
+- input_type='question': General knowledge questions (IPF rules, technique advice, programming principles) - NOT about user's personal data
 """
     messages = [HumanMessage(content=prompt_text)]
     result = llm.invoke(messages)
@@ -77,7 +77,7 @@ def generate_greeting(state: AgentState) -> dict:
     return {"answer": _extract_text(response.content)}
 
 
-SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.
+SYSTEM_PROMPT = """You are an elite powerlifting coach assistant.
 
 ## Guidelines
 - Be direct, technical, and concise

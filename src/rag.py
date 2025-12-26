@@ -53,9 +53,32 @@ def load_text(text: str, source: str = "upload") -> list[Document]:
     return _splitter.split_documents([doc])
 
 
-def index_base_knowledge():
-    """Index PDFs from data/rules and markdown from data/notes."""
+def index_base_knowledge(force: bool = False):
+    """Index PDFs from data/rules and markdown from data/notes.
+
+    Args:
+        force: If True, re-index even if data already exists.
+               Can also be set via FORCE_REINDEX env var.
+    """
+    import os
+
+    force = force or os.getenv("FORCE_REINDEX", "").lower() in ("true", "1", "yes")
+
     store = get_base_vectorstore()
+
+    # Check if already indexed (skip for fast startup)
+    if not force:
+        try:
+            count = store._collection.count()
+            if count > 0:
+                print(
+                    f"Knowledge base already has {count} documents. Skipping indexing."
+                )
+                print("Set FORCE_REINDEX=true to rebuild.")
+                return 0
+        except Exception:
+            pass  # Collection doesn't exist yet, proceed with indexing
+
     docs = []
 
     rules_dir = Path("data/rules")
@@ -70,6 +93,12 @@ def index_base_knowledge():
             docs.extend(load_text(text, source=md.name))
 
     if docs:
+        if force:
+            print("Force re-indexing enabled. Clearing old data...")
+            try:
+                store._collection.delete(where={})
+            except Exception:
+                pass
         print(f"Indexing {len(docs)} chunks into knowledge base...")
         store.add_documents(docs)
     return len(docs)
