@@ -2,86 +2,99 @@
 
 **AI-powered Powerlifting Coach Assistant** built with **LangGraph**, **RAG**, and **NiceGUI**.
 
-Coach Copilot is not just a chatbot; it's an **agentic system** that acts as a personalized powerlifting coach. It plans responses, retrieves knowledge from your trusted sources (PDFs, YouTube), validates relevance, and falls back to web search when necessary.
+An **agentic system** that acts as a personalized powerlifting coach. It classifies user input, retrieves knowledge from documents and YouTube, and uses specialized tools for calculations.
 
 ![Agent Graph](agent_graph.png)
 
 ## Key Features
 
+- **Smart Input Classification**: LLM-powered routing (commands skip RAG, questions use full pipeline)
+- **Multi-Athlete Support**: PIN-protected login, per-athlete Google Sheets access
 - **Agentic Workflow (LangGraph)**:
-  - **Planning**: Deconstructs complex user queries into an execution plan.
-  - **Hybrid RAG**: Retrieves technical knowledge from local documents and YouTube transcripts.
-  - **Self-Correction**: Grading node evaluates document relevance to prevent hallucinations.
-  - **Web Search**: Falls back to DuckDuckGo for up-to-date information (e.g., "latest IPF rule changes").
-- **Data Integration**:
-  - **Google Sheets**: Reads your actual training logs (Cycle/Block logic) to give context-aware advice.
-  - **YouTube**: Indexes transcripts from coaching videos for style and knowledge alignment.
-- **Technical Tools**:
-  - **Calculators**: Built-in 1RM, IPF GL Points, and Plate Loading tools.
-  - **Memory**: Persists chat history for conversational continuity.
-- **Modern UI**:
-  - Built with **NiceGUI** (Python-only frontend).
-  - Dark mode aesthetic with responsive design.
+  - Planning node for complex query analysis
+  - Hybrid RAG with document grading
+  - Web search fallback for current information
+- **Powerlifting Tools**: E1RM calculator, IPF GL Points, Plate Loading
+- **Dual LLM Support**: Ollama (local) or Gemini (API)
+- **YouTube Integration**: Transcript extraction from coaching videos
 
-## Architecture
-
-The system uses a **State Graph** architecture rather than a linear chain:
-
-1. **Plan**: Analyze the user's request.
-2. **Retrieve**: Fetch relevant chunks from ChromaDB.
-3. **Grade**: LLM evaluates if chunks answer the question.
-   - _If Relevant_ → **Generate** answer.
-   - _If Irrelevant_ → **Web Search** → **Generate** answer.
-
-### Tech Stack
-
-- **Orchestration**: `LangGraph`, `LangChain`
-- **LLM**: `Ollama` (Llama 3) / `Gemini 1.5 Pro`
-- **Vector Query**: `ChromaDB`
-- **Frontend**: `NiceGUI`
-- **Package Manager**: `uv` (Astral)
-- **Search**: `DuckDuckGo`
-
-## Installation
-
-This project uses `uv` for lightning-fast dependency management.
+## Quick Start
 
 ```bash
-# 1. Clone the repository
+# Clone
 git clone https://github.com/yourusername/coach-copilot.git
+cd coach-copilot
 
-# 2. Install dependencies
+# Install (using uv - fast Python package manager)
 uv sync
 
-# 3. Set up environment
-# Create .env file with your API keys (Gemini, etc.)
+# Configure
 cp .env.example .env
+# Edit .env with your settings
 
-# 4. Run the app
+# Run
 uv run coach
 ```
 
-Open [http://localhost:8080](http://localhost:8080) to start coaching.
+Open [http://localhost:8080](http://localhost:8080)
 
-## Development
+## Configuration
 
-The project is structured for modularity and scalability:
+Key settings in `.env`:
+
+```env
+# LLM Provider: "ollama" or "gemini"
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_FAST_MODEL=qwen2.5:0.5b
+
+# For Gemini
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-1.5-pro
+GEMINI_FAST_MODEL=gemini-2.0-flash
+
+# Multi-athlete PINs
+ATHLETE_PINS={"Boldi": "1234", "John": "5678"}
+```
+
+## Project Structure
 
 ```
 src/
-├── agent/          # LangGraph agent logic
-│   ├── graph.py    # State machine definition
-│   ├── nodes.py    # Retrieval, Grading, Planning nodes
-│   └── state.py    # Pydantic state schema
-├── ui/             # NiceGUI frontend
-├── tools.py        # Powerlifting calculators
-└── rag.py          # Vector store management
+├── agent/           # LangGraph workflow
+│   ├── graph.py     # State machine with tool calling
+│   ├── nodes.py     # Classify, Plan, Retrieve, Grade, Generate
+│   └── state.py     # Pydantic state schema
+├── tools/           # LangChain tools
+│   ├── calculators.py
+│   ├── sheets.py
+│   ├── youtube.py
+│   └── web_search.py
+├── app.py           # NiceGUI frontend
+├── config.py        # Settings
+├── llm.py           # Provider abstraction
+└── rag.py           # Vector store (ChromaDB)
 ```
 
-Running tests:
+## Tech Stack
+
+| Component       | Technology      |
+| --------------- | --------------- |
+| Orchestration   | LangGraph       |
+| LLM             | Ollama / Gemini |
+| Embeddings      | Ollama / Gemini |
+| Vector Store    | ChromaDB        |
+| UI              | NiceGUI         |
+| Package Manager | uv              |
+
+## Development
 
 ```bash
+# Run tests
 uv run pytest
+
+# Restart server
+.\restart.ps1
 ```
 
 ---
