@@ -50,7 +50,23 @@ Intelligent rescheduling and plan modification.
 
 ## 5. Future Enhancements
 
+### Implemented
+
 - Multi-athlete support with PIN authentication
+- Structured output classification for smart routing
+- Configurable fast/main models for both Ollama and Gemini
+
+### Planned
+
 - Vision analysis for form check videos
 - Competition prep countdown scheduler
 - Integration with wearables (RPE auto-detection)
+
+### Optional Extensions
+
+- **YouTube Data API**: Enable channel search, video listing, metadata access
+- **LangSmith Integration**: Tracing, debugging, and LLM observability
+- **Firecrawl / Advanced Search**: Crawl web pages for deeper research
+- **Thinking Display**: Show agent reasoning steps to build user trust
+- **Clickable Links**: Add source references to responses
+- **Chat Sessions**: Multiple conversation windows with history persistence
