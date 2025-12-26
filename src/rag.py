@@ -1,4 +1,5 @@
 """RAG with per-chat document support."""
+import os
 
 import uuid
 from pathlib import Path
@@ -60,7 +61,6 @@ def index_base_knowledge(force: bool = False):
         force: If True, re-index even if data already exists.
                Can also be set via FORCE_REINDEX env var.
     """
-    import os
 
     force = force or os.getenv("FORCE_REINDEX", "").lower() in ("true", "1", "yes")
 
@@ -77,7 +77,7 @@ def index_base_knowledge(force: bool = False):
                 print("Set FORCE_REINDEX=true to rebuild.")
                 return 0
         except Exception:
-            pass  # Collection doesn't exist yet, proceed with indexing
+            pass
 
     docs = []
 

@@ -54,6 +54,8 @@ Classify as ONE of:
 - input_type='greeting': Greetings (hello, hi, hey), thanks, goodbye, small talk, emojis only
 - input_type='command': Requests about USER'S OWN DATA (training blocks, sheets, workouts, "my training", "my last session"), calculations, YouTube lookups
 - input_type='question': General knowledge questions (IPF rules, technique advice, programming principles) - NOT about user's personal data
+
+NOTE: A question mark (?) does NOT automatically mean 'question'. Focus on CONTENT, not punctuation.
 """
     messages = [HumanMessage(content=prompt_text)]
     result = llm.invoke(messages)
@@ -315,10 +317,11 @@ You have access to the following tools:
 - load_youtube_transcript: Load transcript from a YouTube video
 - search_web: Search the web for information
 
-IMPORTANT:
-- For GREETINGS ("Hello", "Hi"), COMPLIMENTS, or GENERAL CHAT: **DO NOT USE ANY TOOLS.** Just reply friendly.
-- Only use tools if the user specifically asks for data, calculations, or information you don't have.
-- If you have enough context, answer directly."""
+CRITICAL RULES:
+1. For GREETINGS ("Hello", "Hi"): DO NOT USE ANY TOOLS. Just reply friendly.
+2. If you already received tool results in the conversation, USE THAT DATA to answer. DO NOT call the same tool again.
+3. If you have enough information to answer, RESPOND DIRECTLY without calling tools.
+4. Only call a tool if you genuinely lack the information needed."""
         ),
     ]
     messages.extend(history)
@@ -330,10 +333,12 @@ IMPORTANT:
 
     response = llm_with_tools.invoke(messages)
 
-    # If the response has tool calls, we need to add it to chat history
-    # so the tool node can process it
-    if hasattr(response, "tool_calls") and response.tool_calls:
-        return {"chat_history": list(history) + [response]}
+    has_tools = hasattr(response, "tool_calls") and response.tool_calls
+    print(
+        f"---LLM Response: has_tools={has_tools}, content_len={len(str(response.content)) if response.content else 0}---"
+    )
 
-    # If no tool calls, return the answer directly
+    if has_tools:
+        print(f"---Tool calls: {[t['name'] for t in response.tool_calls]}---")
+        return {"chat_history": list(history) + [response]}
     return {"answer": _extract_text(response.content)}

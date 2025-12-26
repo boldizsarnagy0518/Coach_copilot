@@ -2,7 +2,7 @@
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import ToolMessage, HumanMessage
+from langchain_core.messages import ToolMessage
 from src.agent.state import AgentState
 from src.agent.nodes import (
     retrieve,
@@ -19,15 +19,9 @@ from src.tools import ALL_TOOLS
 def should_use_tools(state: AgentState) -> str:
     """Decide if we need to call tools or go to generate."""
     messages = state.chat_history
-
-    tool_count = 0
-    for m in reversed(messages):
-        if isinstance(m, HumanMessage):
-            break
-        if isinstance(m, ToolMessage):
-            tool_count += 1
-
-    if tool_count > 3:
+    tool_count = sum(1 for m in messages if isinstance(m, ToolMessage))
+    if tool_count >= 3:
+        print(f"---STOPPING: Already called {tool_count} tools, forcing generate---")
         return "generate"
 
     if messages and hasattr(messages[-1], "tool_calls") and messages[-1].tool_calls:
