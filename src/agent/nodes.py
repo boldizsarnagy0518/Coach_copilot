@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_ollama import ChatOllama
-from src.llm import get_llm
+
+from src.llm import get_llm, get_fast_llm
 from src.rag import search
 from src.agent.state import AgentState
 from src.tools import ALL_TOOLS
@@ -21,24 +21,6 @@ class InputClassification(BaseModel):
         description="True if question needs document/knowledge lookup, False if it's a direct command like calculation"
     )
     reasoning: str = Field(description="One sentence explaining the classification")
-
-
-def get_fast_llm():
-    """Get fast small model for classification tasks. Supports both Ollama and Gemini."""
-    from src.config import settings
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    if settings.llm_provider == "gemini" and settings.gemini_api_key:
-        return ChatGoogleGenerativeAI(
-            model=settings.gemini_fast_model,
-            google_api_key=settings.gemini_api_key,
-            temperature=0,
-        )
-    return ChatOllama(
-        model=settings.ollama_fast_model,
-        base_url=settings.ollama_base_url,
-        temperature=0,
-    )
 
 
 def classify_input(state: AgentState) -> dict:
