@@ -275,7 +275,10 @@ You have access to the following tools:
 - load_youtube_transcript: Load transcript from a YouTube video
 - search_web: Search the web for information
 
-Use tools when you need specific calculations or data. If you have enough context, answer directly."""
+IMPORTANT:
+- For GREETINGS ("Hello", "Hi"), COMPLIMENTS, or GENERAL CHAT: **DO NOT USE ANY TOOLS.** Just reply friendly.
+- Only use tools if the user specifically asks for data, calculations, or information you don't have.
+- If you have enough context, answer directly."""
         ),
     ]
     messages.extend(history)

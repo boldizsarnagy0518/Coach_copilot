@@ -47,11 +47,21 @@ src/
 - Google Sheets integration with CnumberBnumber ordering
 - Structured outputs with Pydantic models
 
+## Architecture
+
+### Safety Layer
+
+- **Recursion Limit**: Max 3 tool calls per user turn (prevents infinite loops).
+- **Tool Error Handling**: Auto-discovery for Sheets, resilient paths for credentials.
+- **Input Classification**: Direct routing for greetings/commands (skips expensive RAG).
+
 ## Tool Calling Flow
 
 ```
 User Question
     ↓
+[Classify Node] → Greeting/Command? ──→ [Agent Node] (Fast Path)
+    ↓ (Complex Question)
 [Plan Node] → Creates retrieval strategy
     ↓
 [Retrieve Node] → Searches vector store + uploads
@@ -59,11 +69,9 @@ User Question
 [Grade Node] → LLM evaluates relevance
     ↓
     ├── Relevant → [Generate Node] → Answer
-    └── Not Relevant → [Agent Node] → Can call tools
-                           ↓
-                    [Tool Node] → Executes tool
-                           ↓
-                    [Agent Node] → Process result → Answer
+    └── Not Relevant → [Agent Node] → Can call tools (Max 3 iterations)
+                           ↓     ↑
+                    [Tool Node] ─┘
 ```
 
 ## Run
