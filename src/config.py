@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     google_sheets_credentials_path: str | None = None
     google_sheets_spreadsheet_id: str | None = None
 
+    # Athlete PINs (JSON format: {"Boldi": "1234", "John": "5678"})
+    athlete_pins: str = "{}"
+
     # YouTube
     youtube_channel_url: str = "https://www.youtube.com/@boldinagy"
 

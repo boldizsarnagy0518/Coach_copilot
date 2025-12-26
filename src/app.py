@@ -1,14 +1,41 @@
 """Coach Copilot - MVP UI."""
 
+import json
 import tempfile
 from pathlib import Path
-from nicegui import ui
+from typing import List, Dict, Any
+from pydantic import BaseModel, Field
+from nicegui import ui, app
 from src.agent.runner import chat
 from src.rag import create_chat_vectorstore, load_pdf, load_text
-from src.sheets import get_sheets_client, get_newest_sheet, read_sheet
+from src.tools.sheets import (
+    get_sheets_client,
+    get_newest_sheet,
+    read_sheet,
+    list_all_spreadsheets,
+    get_spreadsheet_by_name,
+)
+from src.config import settings
 
-chat_store = None
-messages = []
+
+def get_athlete_pins() -> dict:
+    """Parse athlete PINs from config."""
+    try:
+        return json.loads(settings.athlete_pins)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+
+
+class SessionState(BaseModel):
+    """Session state for chat UI."""
+
+    chat_store: Any = None
+    messages: List[Dict[str, str]] = Field(default_factory=list)
+    athlete_name: str = ""  # Selected athlete
+    athlete_spreadsheet: Any = None  # Their spreadsheet object
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 def add_styles():
@@ -40,10 +67,72 @@ def add_styles():
 
 
 @ui.page("/")
+def login_page():
+    """Login page with athlete selection and PIN."""
+    ui.dark_mode().enable()
+    add_styles()
+
+    # Get available athletes from spreadsheets
+    spreadsheets = list_all_spreadsheets()
+    athlete_names = (
+        [s["name"] for s in spreadsheets] if spreadsheets else ["No athletes found"]
+    )
+
+    athlete_pins = get_athlete_pins()
+
+    with ui.column().classes("container items-center justify-center min-h-screen"):
+        with ui.column().classes("welcome max-w-sm"):
+            ui.label("🏋️ Coach Copilot").classes("text-2xl font-bold mb-4")
+            ui.label("Select your name and enter PIN").classes(
+                "text-sm text-[#888] mb-6"
+            )
+
+            athlete_select = ui.select(
+                athlete_names,
+                label="Athlete",
+                value=athlete_names[0] if athlete_names else None,
+            ).classes("w-full mb-4")
+
+            pin_input = ui.input(
+                label="PIN", password=True, password_toggle_button=True
+            ).classes("w-full mb-4")
+
+            error_label = ui.label("").classes("text-red-400 text-sm mb-2")
+
+            def verify_login():
+                name = athlete_select.value
+                pin = pin_input.value
+
+                # Check PIN
+                if name in athlete_pins:
+                    if athlete_pins[name] != pin:
+                        error_label.text = "Invalid PIN"
+                        return
+                # If no PIN configured for this athlete, allow access (coach mode)
+
+                # Store in app storage and redirect
+                app.storage.user["athlete_name"] = name
+                ui.navigate.to("/chat")
+
+            ui.button("Enter", on_click=verify_login).classes("w-full btn").props(
+                "unelevated"
+            )
+
+            ui.label("No PIN? Ask your coach.").classes("text-xs text-[#444] mt-4")
+
+
+@ui.page("/chat")
 def main():
-    global chat_store, messages
-    chat_store = create_chat_vectorstore()
-    messages = []
+    # Check if logged in
+    athlete_name = app.storage.user.get("athlete_name", "")
+    if not athlete_name:
+        ui.navigate.to("/")
+        return
+
+    state = SessionState()
+    state.chat_store = create_chat_vectorstore()
+    state.athlete_name = athlete_name
+    state.athlete_spreadsheet = get_spreadsheet_by_name(athlete_name)
 
     ui.dark_mode().enable()
     add_styles()
@@ -53,6 +142,7 @@ def main():
             with ui.row().classes("items-center gap-2"):
                 ui.icon("fitness_center", size="xs").classes("dim")
                 ui.label("Coach").classes("font-medium")
+                ui.label(f"• {athlete_name}").classes("text-xs text-[#888]")
             ui.label("Powerlifting Copilot").classes("text-xs text-[#444]")
             with ui.row().classes("items-center gap-1 cursor-pointer"):
                 ui.icon("play_circle", size="xs", color="red").classes("dim")
@@ -80,12 +170,13 @@ def main():
                             "IPF points 600 total 83kg male",
                             msg_input,
                             msg_container,
+                            state,
                         ),
                     )
                     ui.label("Load plates").classes("chip").on(
                         "click",
                         lambda: fill_and_send(
-                            "What plates for 180kg?", msg_input, msg_container
+                            "What plates for 180kg?", msg_input, msg_container, state
                         ),
                     )
                     ui.label("My training").classes("chip").on(
@@ -94,6 +185,7 @@ def main():
                             "What does my latest training sheet show?",
                             msg_input,
                             msg_container,
+                            state,
                         ),
                     )
 
@@ -104,7 +196,7 @@ def main():
         with ui.row().classes("input-area w-full items-center gap-2 mt-4"):
             upload = (
                 ui.upload(
-                    on_upload=lambda e: handle_upload(e, msg_container),
+                    on_upload=lambda e: handle_upload(e, msg_container, state),
                     auto_upload=True,
                 )
                 .props('flat dense accept=".pdf,.txt,.md"')
@@ -119,19 +211,19 @@ def main():
                 .props("borderless dense")
             )
             ui.button(
-                icon="arrow_upward", on_click=lambda: send(msg_input, msg_container)
+                icon="arrow_upward",
+                on_click=lambda: send(msg_input, msg_container, state),
             ).classes("btn").props("flat dense")
 
-        msg_input.on("keydown.enter", lambda: send(msg_input, msg_container))
+        msg_input.on("keydown.enter", lambda: send(msg_input, msg_container, state))
 
 
-async def fill_and_send(text, input_field, container):
+async def fill_and_send(text, input_field, container, state: SessionState):
     input_field.value = text
-    await send(input_field, container)
+    await send(input_field, container, state)
 
 
-async def handle_upload(e, container):
-    global chat_store
+async def handle_upload(e, container, state: SessionState):
     content = e.content.read()
     name = e.name
 
@@ -145,22 +237,23 @@ async def handle_upload(e, container):
         else:
             text = content.decode("utf-8")
             docs = load_text(text, source=name)
-        chat_store.add_documents(docs)
+
+        if state.chat_store:
+            state.chat_store.add_documents(docs)
+
         with container:
             ui.label(f"+ {name}").classes("text-xs text-[#555]")
     finally:
         Path(temp_path).unlink(missing_ok=True)
 
 
-async def send(input_field, container):
-    global messages, chat_store
+async def send(input_field, container, state: SessionState):
     text = input_field.value.strip()
     if not text:
         return
 
     input_field.value = ""
     # Add to UI-only list first (for display, though we rebuild history for LLM below)
-    # Actually, we need to store persistence for history
 
     with container:
         with ui.column().classes("msg-user w-full items-end"):
@@ -174,33 +267,31 @@ async def send(input_field, container):
     try:
         sheets_context = ""
         if "training" in text.lower() or "sheet" in text.lower():
-            spreadsheet = get_sheets_client()
+            # Use athlete's specific spreadsheet
+            spreadsheet = state.athlete_spreadsheet or get_sheets_client()
             if spreadsheet:
                 newest = get_newest_sheet(spreadsheet)
                 data = read_sheet(spreadsheet, newest)
                 if data:
-                    sheets_context = (
-                        f"\n\nTraining data from {newest}:\n{str(data[:10])}"
-                    )
+                    sheets_context = f"\n\nTraining data from {newest} ({state.athlete_name}):\n{str(data[:10])}"
 
         # Convert simple dict messages to LangChain format for history
-        # Note: 'messages' global variable stores dicts like {'role': 'user', 'content': '...'}
         history_objects = []
-        for msg in messages:
+        for msg in state.messages:
             if msg["role"] == "user":
                 history_objects.append(("human", msg["content"]))
             else:
                 history_objects.append(("ai", msg["content"]))
 
         response = await chat(
-            text + sheets_context, chat_store, chat_history=history_objects
+            text + sheets_context, state.chat_store, chat_history=history_objects
         )
 
         thinking.delete()
 
-        # Update global history
-        messages.append({"role": "user", "content": text})
-        messages.append({"role": "assistant", "content": response})
+        # Update session history
+        state.messages.append({"role": "user", "content": text})
+        state.messages.append({"role": "assistant", "content": response})
 
         with container:
             with ui.column().classes("msg-bot"):
@@ -214,7 +305,14 @@ async def send(input_field, container):
 
 
 def run():
-    ui.run(title="Coach", favicon="🏋", port=8080, reload=False, show=True)
+    ui.run(
+        title="Coach",
+        favicon="🏋",
+        port=8080,
+        reload=False,
+        show=True,
+        storage_secret="coach_copilot_secret",
+    )
 
 
 if __name__ == "__main__":

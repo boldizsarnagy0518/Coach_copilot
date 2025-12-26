@@ -7,27 +7,63 @@ from src.llm import get_llm
 from src.rag import search
 from src.agent.state import AgentState
 
-# Fix for DuckDuckGoSearchRun if needed, or we implement simple wrapper
-try:
-    web_search_tool = DuckDuckGoSearchRun()
-except Exception:
-    # Fallback to simple print if init fails (debugging)
-    web_search_tool = None
 
-SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant. Be direct, technical, concise.
-Use metric units. Reference IPF rules when relevant.
-You rely on the provided context (documents, training logs, video transcripts) to answer.
-If context is missing, use general powerlifting knowledge and web search results."""
+web_search_tool = DuckDuckGoSearchRun()
+
+
+SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.
+
+## Guidelines
+- Be direct, technical, and concise
+- Use metric units (kg, cm) exclusively
+- Reference IPF rules when discussing competition standards
+- Structure responses with bullet points for programs/lists, markdown for clarity
+- For calculations, show your work briefly
+
+## Safety
+- Always recommend consulting a medical professional for injury-related concerns
+- Emphasize proper form and progressive overload principles
+- Flag if a request involves potentially dangerous loads or techniques
+
+## Knowledge Priority
+1. User's uploaded documents and training logs
+2. Personal notes and video transcripts from context
+3. IPF rulebook and general powerlifting knowledge
+4. Web search results (if other sources insufficient)"""
 
 PLAN_PROMPT = """You are a powerlifting coach planning how to answer a user's request.
-Break down the request into key concepts to look up or partial calculations.
-Return a concise plan as a bulleted list.
 
+Analyze the request and create a structured retrieval plan.
+
+## Output Format
+Return a brief plan with:
+- **Keywords**: 3-5 key terms to search for in documents
+- **Data needed**: What specific information is required (e.g., training logs, RPE data, PR history)
+- **Calculation**: Any formulas or math needed (IPF points, percentages, plate loading)
+
+## Example
+Request: "What should my squat opener be based on my recent training?"
+
+Plan:
+- Keywords: squat, training, RPE, max, opener
+- Data needed: Recent squat sessions, RPE ratings, rep maxes
+- Calculation: Calculate ~90% of estimated 1RM for conservative opener
+
+---
 Request: {question}"""
 
-GRADE_PROMPT = """You are a grader assessing relevance of a retrieved document to a user question. 
-If the document contains keyword(s) or semantic meaning related to the question, grade it as relevant. 
-Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
+GRADE_PROMPT = """Assess if the retrieved document is relevant to answering the user's powerlifting question.
+
+Document is RELEVANT if it contains:
+- Direct information about the topic asked
+- Training data, exercises, or metrics mentioned in the question  
+- Rules or guidelines applicable to the question
+
+Document is NOT RELEVANT if it:
+- Discusses completely unrelated topics
+- Contains only generic information with no specific connection
+
+Respond with ONLY 'yes' or 'no'. No other text."""
 
 
 def plan_step(state: AgentState) -> dict:
@@ -51,12 +87,16 @@ def retrieve(state: AgentState) -> dict:
     print("---RETRIEVE---")
     question = state.input
 
-    # We can enhance search by appending plan keywords if we wanted
-    # For now, let's stick to the question but maybe print the plan
+    # Enhance search query with plan keywords
     print(f"Executing Plan:\n{state.plan}")
 
-    # Potential upgrade: generate better queries based on plan
-    context_text = search(question)
+    # Extract keywords from plan to enhance retrieval
+    enhanced_query = question
+    if state.plan:
+        # Combine question with plan for better semantic search
+        enhanced_query = f"{question} {state.plan}"
+
+    context_text = search(enhanced_query)
 
     # Search uploaded documents if available
     if state.chat_store:
@@ -69,8 +109,8 @@ def retrieve(state: AgentState) -> dict:
         except Exception as e:
             print(f"Chat store search failed: {e}")
 
-    # Heuristic: Rag returns "No relevant context found." if empty
-    has_docs = "No relevant context found" not in context_text
+    # RAG returns empty string if no results found
+    has_docs = bool(context_text and context_text.strip())
 
     return {"context": context_text, "web_search_needed": not has_docs}
 
@@ -97,9 +137,9 @@ def grade_documents(state: AgentState) -> dict:
 
     grader = grader_prompt | llm
     response = grader.invoke({"question": question, "context": context})
-    score = response.content.lower()
+    score = response.content.strip().lower()
 
-    if "yes" in score:
+    if score == "yes":
         print("---DOCUMENTS RELEVANT---")
         return {"web_search_needed": False}
     else:
@@ -149,4 +189,55 @@ def generate(state: AgentState) -> dict:
     )
 
     response = llm.invoke(messages)
+    return {"answer": response.content}
+
+
+def agent_with_tools(state: AgentState) -> dict:
+    """Agent node that can call tools. Used when context is insufficient."""
+    print("---AGENT WITH TOOLS---")
+    from src.tools import ALL_TOOLS
+
+    question = state.input
+    context = state.context
+    plan = state.plan
+    history = state.chat_history
+
+    llm = get_llm()
+
+    # Bind tools to LLM
+    llm_with_tools = llm.bind_tools(ALL_TOOLS)
+
+    messages = [
+        SystemMessage(
+            content=SYSTEM_PROMPT
+            + """
+
+You have access to the following tools:
+- calculate_e1rm: Calculate estimated 1 rep max
+- calculate_ipf_gl: Calculate IPF Goodlift points
+- calculate_plates: Calculate plates needed for a target weight
+- read_training_sheet: Read training data from Google Sheets
+- update_training_cell: Update a cell in the training sheet
+- list_training_sheets: List available training sheets
+- load_youtube_transcript: Load transcript from a YouTube video
+- search_web: Search the web for information
+
+Use tools when you need specific calculations or data. If you have enough context, answer directly."""
+        ),
+    ]
+    messages.extend(history)
+    messages.append(
+        HumanMessage(
+            content=f"Plan:\n{plan}\n\nContext:\n{context}\n\nQuestion: {question}"
+        )
+    )
+
+    response = llm_with_tools.invoke(messages)
+
+    # If the response has tool calls, we need to add it to chat history
+    # so the tool node can process it
+    if hasattr(response, "tool_calls") and response.tool_calls:
+        return {"chat_history": list(history) + [response]}
+
+    # If no tool calls, return the answer directly
     return {"answer": response.content}

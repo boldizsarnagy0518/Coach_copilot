@@ -4,48 +4,67 @@ AI-powered Powerlifting Coach Assistant
 
 ## Architecture
 
-```text
+```
 src/
-├── config.py    # Settings (Pydantic)
-├── llm.py       # LLM providers (Ollama/Gemini)
-├── tools.py     # Calculators (E1RM, IPF GL, Plates)
-├── rag.py       # Vector store (ChromaDB)
-├── youtube.py   # YouTube transcript loader
-├── sheets.py    # Google Sheets (CnumberBnumber logic)
-├── agent/       # LangGraph agent
-│   ├── graph.py # State machine
-│   ├── nodes.py # Logic steps
-│   └── state.py # Pydantic state
-└── app.py       # NiceGUI web UI
+├── config.py        # Settings (Pydantic)
+├── llm.py           # LLM providers (Ollama/Gemini)
+├── rag.py           # Vector store (ChromaDB)
+├── tools/           # LangChain tools
+│   ├── calculators.py  # E1RM, IPF GL, Plates
+│   ├── sheets.py       # Google Sheets read/write
+│   ├── youtube.py      # YouTube transcripts
+│   └── web_search.py   # DuckDuckGo search
+├── agent/           # LangGraph agent
+│   ├── graph.py     # State machine with tool calling
+│   ├── nodes.py     # Plan, Retrieve, Grade, Generate
+│   ├── state.py     # Pydantic state schema
+│   └── runner.py    # Entry point
+└── app.py           # NiceGUI web UI
 ```
 
 ## Tech Stack
 
-| Component | Technology |
-|-----------|------------|
-| LLM | Ollama (dev) / Gemini (prod) |
-| Embeddings | Ollama / Gemini |
-| Vector Store | ChromaDB |
-| UI | NiceGUI (includes FastAPI) |
-| YouTube | youtube-transcript-api |
-| Sheets | gspread + google-auth |
+| Component     | Technology                   |
+| ------------- | ---------------------------- |
+| Orchestration | LangGraph (ReAct pattern)    |
+| LLM           | Ollama (dev) / Gemini (prod) |
+| Embeddings    | Ollama / Gemini              |
+| Vector Store  | ChromaDB                     |
+| UI            | NiceGUI (includes FastAPI)   |
+| Tools         | LangChain @tool decorators   |
+| YouTube       | youtube-transcript-api       |
+| Sheets        | gspread + google-auth        |
 
 ## Features
 
-- **Agentic RAG** (Plan -> Retrieve -> Grade -> Generate)
-- Web search fallback
+- **Agentic RAG** (Plan -> Retrieve -> Grade -> Tool/Generate)
+- **10 LangChain Tools** with Pydantic schemas:
+  - Calculators: E1RM, IPF GL, Plate loading
+  - Sheets: Read, Update, List training data
+  - YouTube: Load transcripts, channel info
+  - Web: DuckDuckGo search
 - Document upload (PDF, TXT, MD) per chat session
-- YouTube transcript indexing
 - Google Sheets integration with CnumberBnumber ordering
-- Calculators: E1RM, IPF GL Points, Plate loading
+- Structured outputs with Pydantic models
 
-## CnumberBnumber Logic
+## Tool Calling Flow
 
-For Google Sheets, newest sheet is determined by:
-
-- C (cycle) > B (block)
-- C3B1 is newer than C2B10
-- C3B6 is newer than C3B4
+```
+User Question
+    ↓
+[Plan Node] → Creates retrieval strategy
+    ↓
+[Retrieve Node] → Searches vector store + uploads
+    ↓
+[Grade Node] → LLM evaluates relevance
+    ↓
+    ├── Relevant → [Generate Node] → Answer
+    └── Not Relevant → [Agent Node] → Can call tools
+                           ↓
+                    [Tool Node] → Executes tool
+                           ↓
+                    [Agent Node] → Process result → Answer
+```
 
 ## Run
 
@@ -54,4 +73,4 @@ uv sync --group dev
 uv run coach
 ```
 
-Opens at <http://localhost:8080>
+Opens at http://localhost:8080

@@ -2,7 +2,7 @@
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from src.agent.graph import build_graph
-from src.tools import e1rm, ipf_gl, plates
+from src.tools.calculators import e1rm, ipf_gl, plates
 import re
 
 
@@ -10,8 +10,16 @@ async def chat(user_input: str, chat_store=None, chat_history: list = None) -> s
     text_lower = user_input.lower()
 
     # E1RM matches
+    e1rm_keywords = [
+        "e1rm",
+        "1rm",
+        "estimated one rep max",
+        "one rep max",
+        "estimated one rap max",
+        "one rap max",
+    ]
     match = re.search(r"(\d+(?:\.\d+)?)\s*(?:kg)?\s*[x×@]\s*(\d+)", text_lower)
-    if match or "e1rm" in text_lower or "1rm" in text_lower:
+    if match or any(keyword in text_lower for keyword in e1rm_keywords):
         if match:
             w, r = float(match.group(1)), int(match.group(2))
             result = e1rm(w, r)

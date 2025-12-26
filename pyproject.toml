@@ -19,6 +19,7 @@ dependencies = [
     "google-auth>=2.0.0",
     "langgraph>=0.2.0",
     "duckduckgo-search>=6.0.0",
+    "ddgs>=9.10.0",
 ]
 
 [project.optional-dependencies]
