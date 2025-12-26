@@ -1,4 +1,4 @@
-"""Agent state graph with tool calling."""
+"""Agent state graph with tool calling and smart routing."""
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
@@ -9,13 +9,13 @@ from src.agent.nodes import (
     generate,
     plan_step,
     agent_with_tools,
+    classify_input,
 )
 from src.tools import ALL_TOOLS
 
 
 def should_use_tools(state: AgentState) -> str:
     """Decide if we need to call tools or go to generate."""
-    # Check if the last message has tool calls
     messages = state.chat_history
     if messages and hasattr(messages[-1], "tool_calls") and messages[-1].tool_calls:
         return "tools"
@@ -30,28 +30,41 @@ def build_graph():
     tool_node = ToolNode(ALL_TOOLS)
 
     # Nodes
+    workflow.add_node("classify", classify_input)
     workflow.add_node("plan", plan_step)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("grade_documents", grade_documents)
-    workflow.add_node("agent", agent_with_tools) 
+    workflow.add_node("agent", agent_with_tools)
     workflow.add_node("tools", tool_node)
     workflow.add_node("generate", generate)
 
-    # Entry point
-    workflow.set_entry_point("plan")
+    # Entry point - classify first
+    workflow.set_entry_point("classify")
 
-    # Edges
+    # Route based on classification
+    def route_by_type(state: AgentState):
+        if state.input_type == "command":
+            return "agent"  # Skip RAG, go to tools
+        return "plan"  # Question → full RAG path
+
+    workflow.add_conditional_edges(
+        "classify",
+        route_by_type,
+        {"agent": "agent", "plan": "plan"},
+    )
+
+    # RAG path: Plan → Retrieve → Grade → Generate
     workflow.add_edge("plan", "retrieve")
     workflow.add_edge("retrieve", "grade_documents")
 
-    def decide_to_search(state: AgentState):
+    def decide_after_grade(state: AgentState):
         if state.web_search_needed:
-            return "agent" 
+            return "agent"
         return "generate"
 
     workflow.add_conditional_edges(
         "grade_documents",
-        decide_to_search,
+        decide_after_grade,
         {"agent": "agent", "generate": "generate"},
     )
 

@@ -1,8 +1,10 @@
 """Agent nodes."""
 
+from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
+from langchain_ollama import ChatOllama
 from src.llm import get_llm
 from src.rag import search
 from src.agent.state import AgentState
@@ -10,6 +12,55 @@ from src.tools import ALL_TOOLS
 
 
 web_search_tool = DuckDuckGoSearchRun()
+
+
+class InputClassification(BaseModel):
+    """Classification result for user input."""
+
+    needs_rag: bool = Field(
+        description="True if question needs document/knowledge lookup, False if it's a direct command like calculation"
+    )
+    reasoning: str = Field(description="One sentence explaining the classification")
+
+
+def get_fast_llm():
+    """Get fast small model for classification tasks. Supports both Ollama and Gemini."""
+    from src.config import settings
+    from langchain_google_genai import ChatGoogleGenerativeAI
+
+    if settings.llm_provider == "gemini" and settings.gemini_api_key:
+        return ChatGoogleGenerativeAI(
+            model=settings.gemini_fast_model,
+            google_api_key=settings.gemini_api_key,
+            temperature=0,
+        )
+    return ChatOllama(
+        model=settings.ollama_fast_model,
+        base_url=settings.ollama_base_url,
+        temperature=0,
+    )
+
+
+def classify_input(state: AgentState) -> dict:
+    """Classify input using LLM with structured output."""
+    print("---CLASSIFY (LLM)---")
+
+    llm = get_fast_llm().with_structured_output(InputClassification)
+
+    prompt = f"""Classify this user input for a powerlifting coach assistant:
+
+"{state.input}"
+
+Answer:
+- needs_rag=True: Questions about training plans, techniques, rules, advice
+- needs_rag=False: Direct commands like "calculate E1RM", "what plates for 180kg", "IPF points"
+"""
+
+    result = llm.invoke(prompt)
+    print(f"Classification: {result}")
+
+    input_type = "question" if result.needs_rag else "command"
+    return {"input_type": input_type}
 
 
 SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.

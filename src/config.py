@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     # LLM
     llm_provider: Literal["ollama", "gemini"] = "ollama"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
+    ollama_model: str = "qwen2.5:7b"
+    ollama_fast_model: str = "qwen2.5:0.5b"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-1.5-pro"
+    gemini_fast_model: str = "gemini-2.0-flash"
 
     # Embeddings
     embedding_provider: Literal["ollama", "gemini"] = "ollama"

@@ -9,6 +9,7 @@ class AgentState(BaseModel):
     """The state of the agent graph."""
 
     input: str = Field(description="User question")
+    input_type: str = Field(default="question", description="question or command")
     plan: str = Field(default="", description="Execution plan")
     chat_history: List[BaseMessage] = Field(
         default_factory=list, description="Chat history"
