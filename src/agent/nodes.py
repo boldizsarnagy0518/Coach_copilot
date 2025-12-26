@@ -6,6 +6,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 from src.llm import get_llm
 from src.rag import search
 from src.agent.state import AgentState
+from src.tools import ALL_TOOLS
 
 
 web_search_tool = DuckDuckGoSearchRun()
@@ -195,7 +196,6 @@ def generate(state: AgentState) -> dict:
 def agent_with_tools(state: AgentState) -> dict:
     """Agent node that can call tools. Used when context is insufficient."""
     print("---AGENT WITH TOOLS---")
-    from src.tools import ALL_TOOLS
 
     question = state.input
     context = state.context
@@ -204,7 +204,6 @@ def agent_with_tools(state: AgentState) -> dict:
 
     llm = get_llm()
 
-    # Bind tools to LLM
     llm_with_tools = llm.bind_tools(ALL_TOOLS)
 
     messages = [

@@ -10,7 +10,10 @@ from google.oauth2.service_account import Credentials
 from src.config import settings
 
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.readonly",  # Required for listing spreadsheets
+]
 
 
 # --- Pydantic Schemas ---

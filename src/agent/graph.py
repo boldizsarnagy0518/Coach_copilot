@@ -33,8 +33,8 @@ def build_graph():
     workflow.add_node("plan", plan_step)
     workflow.add_node("retrieve", retrieve)
     workflow.add_node("grade_documents", grade_documents)
-    workflow.add_node("agent", agent_with_tools)  # Agent that can call tools
-    workflow.add_node("tools", tool_node)  # Tool executor
+    workflow.add_node("agent", agent_with_tools) 
+    workflow.add_node("tools", tool_node)
     workflow.add_node("generate", generate)
 
     # Entry point
@@ -46,7 +46,7 @@ def build_graph():
 
     def decide_to_search(state: AgentState):
         if state.web_search_needed:
-            return "agent"  # Go to agent which can use tools
+            return "agent" 
         return "generate"
 
     workflow.add_conditional_edges(
