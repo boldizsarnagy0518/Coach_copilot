@@ -90,10 +90,30 @@ def get_spreadsheet_by_name(name: str):
 
 
 def get_newest_sheet(spreadsheet) -> str:
-    """Get the default worksheet (first one). simplified from complex regex."""
+    """Get the newest worksheet by CnBn naming convention (highest C and B numbers)."""
     if not spreadsheet:
         return None
-    # Simply return the first visible sheet
+
+    import re
+
+    worksheets = spreadsheet.worksheets()
+
+    # Find sheets matching CnBn pattern and sort by (cycle, block) numbers
+    cnbn_sheets = []
+    for ws in worksheets:
+        match = re.match(r"C(\d+)B(\d+)", ws.title, re.IGNORECASE)
+        if match:
+            cycle, block = int(match.group(1)), int(match.group(2))
+            cnbn_sheets.append((cycle, block, ws.title))
+
+    if cnbn_sheets:
+        # Sort by cycle desc, then block desc - get the newest
+        cnbn_sheets.sort(reverse=True)
+        newest = cnbn_sheets[0][2]
+        print(f"---Found newest sheet: {newest}---")
+        return newest
+
+    # Fallback to first sheet if no CnBn pattern found
     return spreadsheet.sheet1.title
 
 
@@ -121,12 +141,15 @@ def read_sheet(spreadsheet, sheet_name: str = None) -> list[tuple[int, list[str]
 @tool(args_schema=ReadSheetInput)
 def read_training_sheet(sheet_name: str = "") -> str:
     """Read training data from Google Sheets."""
-    print(f"---TOOL: Reading training sheet '{sheet_name}'...---")
     spreadsheet = get_sheets_client()
     if not spreadsheet:
         return "Error: Google Sheets not configured."
 
-    data = read_sheet(spreadsheet, sheet_name if sheet_name else None)
+    # Always use newest sheet - ignore LLM's guess
+    actual_sheet = get_newest_sheet(spreadsheet)
+    print(f"---TOOL: Reading sheet '{actual_sheet}' (LLM requested: '{sheet_name}')---")
+
+    data = read_sheet(spreadsheet, actual_sheet)
     if not data:
         return "No training data found."
 

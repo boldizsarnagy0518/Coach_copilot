@@ -50,12 +50,23 @@ def classify_input(state: AgentState) -> dict:
 
 "{state.input}"
 
-Classify as ONE of:
-- input_type='greeting': Greetings (hello, hi, hey), thanks, goodbye, small talk, emojis only
-- input_type='command': Requests about USER'S OWN DATA (training blocks, sheets, workouts, "my training", "my last session"), calculations, YouTube lookups
-- input_type='question': General knowledge questions (IPF rules, technique advice, programming principles) - NOT about user's personal data
+Categories:
+- greeting: ONLY greetings, thanks, goodbye, emojis
+- command: User's data, numbers, weights, PRs, training, sheets, calculations
+- question: ONLY generic knowledge (What is RPE? IPF rules?)
 
-NOTE: A question mark (?) does NOT automatically mean 'question'. Focus on CONTENT, not punctuation.
+Examples:
+- "Hello!" → greeting
+- "Thanks!" → greeting
+- "What was my best squat?" → command
+- "Summarize my training" → command
+- "What does my latest training sheet show?" → command
+- "highest number" → command
+- "Calculate 150kg plates" → command
+- "What is RPE?" → question
+- "How does periodization work?" → question
+
+When uncertain, default to 'command'.
 """
     messages = [HumanMessage(content=prompt_text)]
     result = llm.invoke(messages)
@@ -127,7 +138,8 @@ SYSTEM_PROMPT = """You are an elite powerlifting coach assistant.
 ## Tool Usage Guidelines
 - If a tool returns "No training data found" or an error, **DO NOT** call the same tool again with the same arguments.
 - If you have already called a tool and got a result, use that result to formulate your answer. **Do not call the tool again.**
-- Do not loop. If you are stuck, ask the user for clarification."""
+- Do not loop. If you are stuck, ask the user for clarification.
+- When reading training sheets, use **empty sheet_name** (like `sheet_name=''`) to get the default/latest sheet. Do NOT guess sheet names like 'C3B6'."""
 
 PLAN_PROMPT = """You are a powerlifting coach planning how to answer a user's request.
 
