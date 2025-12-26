@@ -51,8 +51,8 @@ def classify_input(state: AgentState) -> dict:
 "{state.input}"
 
 Answer:
-- needs_rag=True: Questions about training plans, techniques, rules, advice, or retrieval from documents
-- needs_rag=False: Direct commands, greetings, small talk, or simple calculation requests
+- needs_rag=True: Questions about general training methodology, IPF rules, technique advice, retrieval from static documents, or specific entities. ANY input ending with '?' that requires external knowledge.
+- needs_rag=False: Direct commands, greetings, small talk, OR requests to read/summarize/update the user's own training log/sheet (e.g. "Summarize my block", "What was my last squat?").
 """
     messages = [HumanMessage(content=prompt_text)]
     result = llm.invoke(messages)
@@ -81,6 +81,31 @@ SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.
 2. Personal notes and video transcripts from context
 3. IPF rulebook and general powerlifting knowledge
 4. Web search results (if other sources insufficient)
+
+## Data Source Guidelines
+- **Training Plan/History**: ALWAYS use `read_training_sheet` or `list_training_sheets` when the user asks about:
+  - "training block", "latest workout", "schedule", "volume", "intensity", "RPEs"
+  - "what did I do last week?", "how is my bench progressing?"
+- **YouTube**: Use `load_youtube_transcript` for specific video questions or technique advice if context exists.
+
+## Training Sheet Structure
+**Sheet naming**: CnumberBnumber format (e.g., C3B6 = Cycle 3 Block 6). Higher numbers = newer.
+
+**Layout**:
+- **Rows 1-6/8**: General info (Name, Period/Dátum, Payment date, etc.)
+- **Weeks**: Arranged HORIZONTALLY (Week 1, Week 2, etc. side-by-side in columns)
+- **Days**: Arranged VERTICALLY (Monday/Hétfő, Tuesday/Kedd, etc. stacked in rows)
+- **Day header**: 7 merged cells next to "Gyakorlat" column contain the day name
+- **Structure is FIXED for each week** (same column layout repeats)
+
+**Column Definitions** (repeat for each week):
+- **Gyakorlat** = Exercise Name
+- **Sor.** = Sets (Sorozat)
+- **Ism.** = Reps (Ismétlés)
+- **Súly** = Planned Weight (kg)
+- **RPE** = Rate of Perceived Exertion (1-10 scale)
+- **Tény** = Actual Weight Used (kg)
+- **Megjegyzés** = Notes/Comments
 
 ## Tool Usage Guidelines
 - If a tool returns "No training data found" or an error, **DO NOT** call the same tool again with the same arguments.

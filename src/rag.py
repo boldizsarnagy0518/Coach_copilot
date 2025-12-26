@@ -70,6 +70,7 @@ def index_base_knowledge():
             docs.extend(load_text(text, source=md.name))
 
     if docs:
+        print(f"Indexing {len(docs)} chunks into knowledge base...")
         store.add_documents(docs)
     return len(docs)
 

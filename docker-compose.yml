@@ -6,9 +6,5 @@ services:
     env_file:
       - .env
     volumes:
-      - chroma_data:/app/data/chroma_db
       - ./secrets:/app/secrets:ro
     restart: unless-stopped
-
-volumes:
-  chroma_data:

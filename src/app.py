@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from nicegui import ui, app
 from src.agent.runner import chat
-from src.rag import create_chat_vectorstore, load_pdf, load_text
+from src.rag import create_chat_vectorstore, load_pdf, load_text, index_base_knowledge
 from src.tools.sheets import (
     get_sheets_client,
     get_newest_sheet,
@@ -305,6 +305,12 @@ async def send(input_field, container, state: SessionState):
 
 
 def run():
+    print("Checking knowledge base...")
+    try:
+        index_base_knowledge()
+    except Exception as e:
+        print(f"Warning: Could not index base knowledge: {e}")
+
     ui.run(
         title="Coach",
         favicon="🏋",
