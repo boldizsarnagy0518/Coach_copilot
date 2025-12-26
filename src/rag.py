@@ -1,4 +1,5 @@
 """RAG with per-chat document support."""
+
 import os
 
 import uuid

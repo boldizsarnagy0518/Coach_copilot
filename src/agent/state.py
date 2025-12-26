@@ -1,13 +1,9 @@
-"""Agent state definition using Pydantic."""
-
 from typing import List
 from pydantic import BaseModel, Field
 from langchain_core.messages import BaseMessage
 
 
 class AgentState(BaseModel):
-    """The state of the agent graph."""
-
     input: str = Field(description="User question")
     input_type: str = Field(default="question", description="question or command")
     plan: str = Field(default="", description="Execution plan")
