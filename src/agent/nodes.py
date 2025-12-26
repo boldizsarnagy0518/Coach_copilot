@@ -34,8 +34,8 @@ def _extract_text(content) -> str:
 class InputClassification(BaseModel):
     """Classification result for user input."""
 
-    needs_rag: bool = Field(
-        description="True if question needs document/knowledge lookup, False if it's a direct command like calculation"
+    input_type: str = Field(
+        description="One of: 'greeting' (hello/hi/thanks), 'command' (calculations, sheet operations), 'question' (needs knowledge lookup)"
     )
     reasoning: str = Field(description="One sentence explaining the classification")
 
@@ -50,16 +50,31 @@ def classify_input(state: AgentState) -> dict:
 
 "{state.input}"
 
-Answer:
-- needs_rag=True: Questions about general training methodology, IPF rules, technique advice, retrieval from static documents, or specific entities. ANY input ending with '?' that requires external knowledge.
-- needs_rag=False: Direct commands, greetings, small talk, OR requests to read/summarize/update the user's own training log/sheet (e.g. "Summarize my block", "What was my last squat?").
+Classify as ONE of:
+- input_type='greeting': Greetings (hello, hi, hey), thanks, goodbye, small talk, emojis only
+- input_type='command': Calculations, sheet operations, YouTube lookups, direct requests
+- input_type='question': Questions needing knowledge lookup (training advice, rules, technique)
 """
     messages = [HumanMessage(content=prompt_text)]
     result = llm.invoke(messages)
     print(f"Classification: {result}")
 
-    input_type = "question" if result.needs_rag else "command"
-    return {"input_type": input_type}
+    return {"input_type": result.input_type}
+
+
+def generate_greeting(state: AgentState) -> dict:
+    """Fast response for greetings without tools."""
+    print("---GREETING (FAST)---")
+
+    llm = get_fast_llm()
+    messages = [
+        SystemMessage(
+            content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings."
+        ),
+        HumanMessage(content=state.input),
+    ]
+    response = llm.invoke(messages)
+    return {"answer": _extract_text(response.content)}
 
 
 SYSTEM_PROMPT = """You are Boldi Nagy's powerlifting coach assistant.

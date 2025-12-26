@@ -11,6 +11,7 @@ from src.agent.nodes import (
     plan_step,
     agent_with_tools,
     classify_input,
+    generate_greeting,
 )
 from src.tools import ALL_TOOLS
 
@@ -47,10 +48,13 @@ def build_graph():
     workflow.add_node("agent", agent_with_tools)
     workflow.add_node("tools", tool_node)
     workflow.add_node("generate", generate)
+    workflow.add_node("greeting", generate_greeting)
 
     workflow.set_entry_point("classify")
 
     def route_by_type(state: AgentState):
+        if state.input_type == "greeting":
+            return "greeting"
         if state.input_type == "command":
             return "agent"
         return "plan"
@@ -58,8 +62,11 @@ def build_graph():
     workflow.add_conditional_edges(
         "classify",
         route_by_type,
-        {"agent": "agent", "plan": "plan"},
+        {"greeting": "greeting", "agent": "agent", "plan": "plan"},
     )
+
+    # Greeting goes straight to END
+    workflow.add_edge("greeting", END)
 
     # RAG path: Plan → Retrieve → Grade → Generate
     workflow.add_edge("plan", "retrieve")
