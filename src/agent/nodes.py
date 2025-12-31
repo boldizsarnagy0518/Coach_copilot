@@ -8,8 +8,19 @@ from langchain_community.tools import DuckDuckGoSearchRun
 
 from src.llm import get_llm, get_fast_llm
 from src.agent.state import AgentState
+from src.agent.reformulate_agent import reformulate_agent
 from src.tools import ALL_TOOLS
-from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
+from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT
+
+from typing import Literal
+from src.utils.instructor_client import get_instructor_client
+from src.config import settings
+
+
+class Grade(BaseModel):
+    """Relevance grade."""
+
+    score: Literal["yes", "no"] = Field(description="Relevance score 'yes' or 'no'")
 
 
 web_search_tool = DuckDuckGoSearchRun()
@@ -40,62 +51,29 @@ class InputClassification(BaseModel):
     reasoning: str = Field(description="One sentence explaining the classification")
 
 
-class QueryReformulation(BaseModel):
-    """Result of query reformulation."""
-
-    reformulated: str = Field(
-        description="The clarified query (or original if already clear)"
-    )
-    was_changed: bool = Field(
-        description="True if the query was reformulated, False if passed through unchanged"
-    )
-
-
 def reformulate_query(state: AgentState) -> dict:
-    """Reformulate ambiguous queries, or pass through unchanged if clear."""
-    print("---REFORMULATE---")
-
-    llm = get_fast_llm().with_structured_output(QueryReformulation)
-
-    prompt_text = f"""You are a query reformulation assistant for a powerlifting coach AI.
-
-User input: "{state.input}"
-
-RULES:
-1. If the input is CLEAR and UNAMBIGUOUS → return it UNCHANGED
-2. Only reformulate if truly ambiguous (vague pronouns like "that", "it" without context, or incomplete requests)
-3. Keep reformulations concise and in the same language as the input
-4. Preserve the user's intent exactly
-
-Examples:
-- "Hello!" → UNCHANGED (clear greeting)
-- "What is my PR?" → UNCHANGED (clear request)
-- "that thing" → "Could you clarify what you're referring to?"
-- "do it again" → "Could you clarify what action you'd like me to repeat?"
-- "150kg plates" → "Calculate the plates needed for 150kg"
-
-Return the reformulated query (or original if clear) and whether you changed it."""
+    """Reformulate ambiguous queries using PydanticAI agent."""
+    print("---REFORMULATE (PydanticAI)---")
 
     try:
-        result = llm.invoke([HumanMessage(content=prompt_text)])
+        # Run the agent synchronously
+        result = reformulate_agent.run_sync(state.input)
         print(
-            f"Reformulation: changed={result.was_changed}, query='{result.reformulated}'"
+            f"Reformulation: changed={result.data.was_changed}, query='{result.data.reformulated}'"
         )
-
-        # Use reformulated query for subsequent processing
-        return {"reformulated_input": result.reformulated}
+        return {"reformulated_input": result.data.reformulated}
     except Exception as e:
         print(f"---REFORMULATE ERROR: {e}, using original input---")
         return {"reformulated_input": state.input}
 
 
 def classify_input(state: AgentState) -> dict:
-    """Classify input using heuristics and LLM."""
+    """Classify input using heuristics and LLM (via Instructor)."""
     print("---CLASSIFY---")
 
     query = (state.reformulated_input or state.input).lower().strip()
 
-    # 1. Fast Heuristics for Small Talk (Critical for avoiding tool loops on simple greetings)
+    # 1. Fast Heuristics for Small Talk
     small_talk_keywords = [
         "hello",
         "hi",
@@ -121,11 +99,12 @@ def classify_input(state: AgentState) -> dict:
         print("Classification (Heuristic): small_talk")
         return {"input_type": "small_talk"}
 
-    # 2. LLM Classification
-    print("---CLASSIFY (LLM)---")
-    llm = get_fast_llm().with_structured_output(InputClassification)
+    # 2. LLM Classification with Instructor
+    print("---CLASSIFY (Instructor)---")
 
-    prompt_text = f"""Classify this user input for a powerlifting coach assistant:
+    try:
+        client = get_instructor_client()
+        prompt_text = f"""Classify this user input for a powerlifting coach assistant:
 
 "{state.reformulated_input or state.input}"
 
@@ -145,14 +124,19 @@ Examples:
 
 When uncertain, default to 'command'."""
 
-    try:
-        # Use simpler invocation for small models
-        result = llm.invoke([HumanMessage(content=prompt_text)])
+        # Use fast model for classification
+        result = client.chat.completions.create(
+            model=settings.ollama_fast_model,
+            response_model=InputClassification,
+            messages=[{"role": "user", "content": prompt_text}],
+            max_retries=2,
+        )
         print(f"Classification: {result}")
         return {"input_type": result.input_type}
+
     except Exception as e:
         print(f"---CLASSIFY ERROR: {e}, defaulting to command---")
-        # Fallback: if 'my' or 'I' or 'schedule' in text, likely command, else question
+        # Fallback: reasonable defaults
         if any(
             w in query for w in ["my", "i", "schedule", "training", "sheet", "program"]
         ):
@@ -164,15 +148,50 @@ def generate_small_talk(state: AgentState) -> dict:
     """Fast response for greetings and casual chat without tools."""
     print("---SMALL TALK (FAST)---")
 
-    llm = get_fast_llm()
-    messages = [
-        SystemMessage(
-            content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings and casual messages."
-        ),
-        HumanMessage(content=state.input),
-    ]
-    response = llm.invoke(messages)
-    return {"answer": _extract_text(response.content)}
+    try:
+        llm = get_fast_llm()
+        messages = [
+            SystemMessage(
+                content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings and casual messages."
+            ),
+            HumanMessage(content=state.input),
+        ]
+        response = llm.invoke(messages)
+        return {"answer": _extract_text(response.content)}
+    except Exception as e:
+        print(f"---SMALL TALK ERROR: {e}---")
+        return {
+            "answer": f"I'm having trouble connecting to my brain (LLM Error: {str(e)[:100]}). Please check if Ollama is running and the model is pulled."
+        }
+
+
+def generate(state: AgentState) -> dict:
+    """Generate answer."""
+    print("---GENERATE---")
+    question = state.input
+    context = state.context
+    plan = state.plan
+    history = state.chat_history
+
+    try:
+        llm = get_llm()
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+        ]
+        messages.extend(history)
+        messages.append(
+            HumanMessage(
+                content=f"Plan:\n{plan}\n\nContext:\n{context}\n\nQuestion: {question}"
+            )
+        )
+
+        response = llm.invoke(messages)
+        return {"answer": _extract_text(response.content)}
+    except Exception as e:
+        print(f"---GENERATE ERROR: {e}---")
+        return {
+            "answer": f"I encountered an error generating the response: {str(e)[:200]}. Please check your configuration."
+        }
 
 
 def plan_step(state: AgentState) -> dict:
@@ -239,35 +258,53 @@ def retrieve(state: AgentState) -> dict:
 
 
 def grade_documents(state: AgentState) -> dict:
-    """Grade relevance of retrieved documents."""
-    print("---CHECK RELEVANCE---")
+    """Grade relevance of retrieved documents using Instructor."""
+    print("---CHECK RELEVANCE (Instructor)---")
     if state.web_search_needed:
         return {"web_search_needed": True}  # Already failed at retrieve step
 
     question = state.input
     context = state.context
 
-    llm = get_llm()
-    grader_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", GRADE_PROMPT),
-            (
-                "human",
-                "Retrieved document: \n\n {context} \n\n User question: {question}",
-            ),
-        ]
-    )
-
-    grader = grader_prompt | llm
-    response = grader.invoke({"question": question, "context": context})
-    score = _extract_text(response.content).strip().lower()
-
-    if score == "yes":
-        print("---DOCUMENTS RELEVANT---")
-        return {"web_search_needed": False}
-    else:
-        print("---DOCUMENTS NOT RELEVANT---")
+    # Skip grading if context is empty
+    if not context or not context.strip():
         return {"web_search_needed": True}
+
+    try:
+        client = get_instructor_client()
+
+        # We construct the prompt content manually for the message
+        prompt_content = f"""You are a grader assessing relevance of a retrieved document to a user question.
+
+Retrieved document:
+{context}
+
+User question: {question}
+
+If the document contains keyword(s) or semantic meaning related to the user question, grade it as 'yes'.
+It does not need to be a stringent test. The goal is to filter out erroneous retrievals.
+Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
+
+        grade = client.chat.completions.create(
+            model=settings.ollama_fast_model,  # Use fast model for grading
+            response_model=Grade,
+            messages=[{"role": "user", "content": prompt_content}],
+            max_retries=2,
+        )
+
+        score = grade.score
+        print(f"Grade: {score}")
+
+        if score == "yes":
+            print("---DOCUMENTS RELEVANT---")
+            return {"web_search_needed": False}
+        else:
+            print("---DOCUMENTS NOT RELEVANT---")
+            return {"web_search_needed": True}
+
+    except Exception as e:
+        print(f"---GRADING ERROR: {e}, assuming relevant---")
+        return {"web_search_needed": False}
 
 
 def web_search(state: AgentState) -> dict:
@@ -290,29 +327,6 @@ def web_search(state: AgentState) -> dict:
         return {"context": f"Web Search Results:\n{results}"}
     except Exception as e:
         return {"context": f"Web search failed: {e}"}
-
-
-def generate(state: AgentState) -> dict:
-    """Generate answer."""
-    print("---GENERATE---")
-    question = state.input
-    context = state.context
-    plan = state.plan
-    history = state.chat_history
-
-    llm = get_llm()
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-    ]
-    messages.extend(history)
-    messages.append(
-        HumanMessage(
-            content=f"Plan:\n{plan}\n\nContext:\n{context}\n\nQuestion: {question}"
-        )
-    )
-
-    response = llm.invoke(messages)
-    return {"answer": _extract_text(response.content)}
 
 
 def agent_with_tools(state: AgentState) -> dict:

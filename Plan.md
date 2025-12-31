@@ -79,5 +79,11 @@ Intelligent rescheduling and plan modification.
 
 The following frameworks are being evaluated for future iterations to enhance structure and reliability:
 
-- **PydanticAI**: For robust validation of agent inputs/outputs and clearer data modeling within the agentic flow.
-- **Instructor**: To improve structured output reliability from LLMs (especially smaller models like Qwen) by patching OpenAI-compatible clients with Pydantic validation.
+- **PydanticAI**:
+
+  - **Why**: Provides a strongly-typed framework for building agents where every input/output is validated by Pydantic schemas.
+  - **Use Case**: Could replace or augment the current node logic to ensure strictly typed state transitions and reduce runtime errors in the agent graph. Useful for complex multi-agent handoffs.
+
+- **Instructor**:
+  - **Why**: A specialized library that patches OpenAI-compatible clients (like Ollama) to enforce structured outputs using Pydantic models.
+  - **Use Case**: Superior for smaller local models (like `qwen2.5:3b`) compared to standard JSON modes. Would significantly improve reliability of the `classify_input` and `grade_documents` nodes by guaranteeing valid JSON schemas and automatically retrying on validation failures.

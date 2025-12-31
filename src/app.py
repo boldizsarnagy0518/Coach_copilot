@@ -119,7 +119,8 @@ def add_styles():
             height: 100%; 
             background: var(--bg-body); 
             display: flex; 
-            justify-content: center; 
+            flex-direction: column; 
+            align-items: center; 
         }
         
         .chat-area { 
