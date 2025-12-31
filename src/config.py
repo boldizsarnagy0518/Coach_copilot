@@ -13,8 +13,8 @@ class Settings(BaseSettings):
     llm_provider: Literal["ollama", "gemini"] = "ollama"
 
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:7b"
-    ollama_fast_model: str = "qwen2.5:0.5b"
+    ollama_model: str = "qwen2.5:3b"  # CPU friendly default
+    ollama_fast_model: str = "qwen2.5:0.5b"  # CPU friendly default
 
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-3-flash-preview"

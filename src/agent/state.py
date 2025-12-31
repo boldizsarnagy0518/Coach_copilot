@@ -5,6 +5,9 @@ from langchain_core.messages import BaseMessage
 
 class AgentState(BaseModel):
     input: str = Field(description="User question")
+    reformulated_input: str = Field(
+        default="", description="Clarified user query (or same as input if clear)"
+    )
     input_type: str = Field(default="question", description="question or command")
     plan: str = Field(default="", description="Execution plan")
     chat_history: List[BaseMessage] = Field(

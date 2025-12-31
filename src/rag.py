@@ -111,3 +111,34 @@ def search(query: str, store: Chroma = None, k: int = 3) -> str:
     if not results:
         return ""
     return "\n\n---\n\n".join(doc.page_content for doc in results)
+
+
+def search_with_scores(
+    query: str, store: Chroma = None, k: int = 10
+) -> list[tuple[Document, float]]:
+    """Search with relevance scores (0-1 scale, higher = more relevant).
+
+    Fetches k documents and returns top 5 by score.
+    """
+    store = store or get_base_vectorstore()
+    try:
+        results = store.similarity_search_with_relevance_scores(query, k=k)
+        # Sort by score descending and take top 5
+        results = sorted(results, key=lambda x: x[1], reverse=True)[:5]
+        return results
+    except Exception as e:
+        print(f"---SEARCH_WITH_SCORES ERROR: {e}---")
+        return []
+
+
+def format_scored_results(results: list[tuple[Document, float]]) -> str:
+    """Format scored results for context with relevance and source indicators."""
+    if not results:
+        return ""
+    formatted = []
+    for doc, score in results:
+        source = doc.metadata.get("source", "knowledge base")
+        formatted.append(
+            f"[Source: {source}] [Relevance: {score:.2f}]\n{doc.page_content}"
+        )
+    return "\n\n---\n\n".join(formatted)

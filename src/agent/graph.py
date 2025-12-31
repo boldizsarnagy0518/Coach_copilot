@@ -2,7 +2,7 @@
 
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import ToolMessage, HumanMessage
 from src.agent.state import AgentState
 from src.agent.nodes import (
     retrieve,
@@ -11,7 +11,8 @@ from src.agent.nodes import (
     plan_step,
     agent_with_tools,
     classify_input,
-    generate_greeting,
+    generate_small_talk,
+    reformulate_query,
 )
 from src.tools import ALL_TOOLS
 
@@ -19,9 +20,23 @@ from src.tools import ALL_TOOLS
 def should_use_tools(state: AgentState) -> str:
     """Decide if we need to call tools or go to generate."""
     messages = state.chat_history
-    tool_count = sum(1 for m in messages if isinstance(m, ToolMessage))
+
+    # Find the index of the last HumanMessage to only count tools for current turn
+    last_human_idx = -1
+    for i, m in enumerate(messages):
+        if isinstance(m, HumanMessage):
+            last_human_idx = i
+
+    # Count tools only since the last HumanMessage (current turn)
+    messages_since_human = (
+        messages[last_human_idx + 1 :] if last_human_idx >= 0 else messages
+    )
+    tool_count = sum(1 for m in messages_since_human if isinstance(m, ToolMessage))
+
     if tool_count >= 3:
-        print(f"---STOPPING: Already called {tool_count} tools, forcing generate---")
+        print(
+            f"---STOPPING: Already called {tool_count} tools this turn, forcing generate---"
+        )
         return "generate"
 
     if messages and hasattr(messages[-1], "tool_calls") and messages[-1].tool_calls:
@@ -35,6 +50,7 @@ def build_graph():
 
     tool_node = ToolNode(ALL_TOOLS, messages_key="chat_history")
 
+    workflow.add_node("reformulate", reformulate_query)
     workflow.add_node("classify", classify_input)
     workflow.add_node("plan", plan_step)
     workflow.add_node("retrieve", retrieve)
@@ -42,13 +58,15 @@ def build_graph():
     workflow.add_node("agent", agent_with_tools)
     workflow.add_node("tools", tool_node)
     workflow.add_node("generate", generate)
-    workflow.add_node("greeting", generate_greeting)
+    workflow.add_node("small_talk", generate_small_talk)
 
-    workflow.set_entry_point("classify")
+    # Entry: reformulate → classify
+    workflow.set_entry_point("reformulate")
+    workflow.add_edge("reformulate", "classify")
 
     def route_by_type(state: AgentState):
-        if state.input_type == "greeting":
-            return "greeting"
+        if state.input_type == "small_talk":
+            return "small_talk"
         if state.input_type == "command":
             return "agent"
         return "plan"
@@ -56,11 +74,11 @@ def build_graph():
     workflow.add_conditional_edges(
         "classify",
         route_by_type,
-        {"greeting": "greeting", "agent": "agent", "plan": "plan"},
+        {"small_talk": "small_talk", "agent": "agent", "plan": "plan"},
     )
 
-    # Greeting goes straight to END
-    workflow.add_edge("greeting", END)
+    # Small talk goes straight to END
+    workflow.add_edge("small_talk", END)
 
     # RAG path: Plan → Retrieve → Grade → Generate
     workflow.add_edge("plan", "retrieve")

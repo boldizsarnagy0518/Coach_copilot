@@ -7,9 +7,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
 
 from src.llm import get_llm, get_fast_llm
-from src.rag import search
 from src.agent.state import AgentState
 from src.tools import ALL_TOOLS
+from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
 
 
 web_search_tool = DuckDuckGoSearchRun()
@@ -35,145 +35,144 @@ class InputClassification(BaseModel):
     """Classification result for user input."""
 
     input_type: str = Field(
-        description="One of: 'greeting' (hello/hi/thanks), 'command' (calculations, sheet operations), 'question' (needs knowledge lookup)"
+        description="One of: 'small_talk' (greetings/thanks/casual), 'command' (user's data, calculations, sheets), 'question' (general knowledge)"
     )
     reasoning: str = Field(description="One sentence explaining the classification")
 
 
-def classify_input(state: AgentState) -> dict:
-    """Classify input using LLM with structured output."""
-    print("---CLASSIFY (LLM)---")
+class QueryReformulation(BaseModel):
+    """Result of query reformulation."""
 
+    reformulated: str = Field(
+        description="The clarified query (or original if already clear)"
+    )
+    was_changed: bool = Field(
+        description="True if the query was reformulated, False if passed through unchanged"
+    )
+
+
+def reformulate_query(state: AgentState) -> dict:
+    """Reformulate ambiguous queries, or pass through unchanged if clear."""
+    print("---REFORMULATE---")
+
+    llm = get_fast_llm().with_structured_output(QueryReformulation)
+
+    prompt_text = f"""You are a query reformulation assistant for a powerlifting coach AI.
+
+User input: "{state.input}"
+
+RULES:
+1. If the input is CLEAR and UNAMBIGUOUS → return it UNCHANGED
+2. Only reformulate if truly ambiguous (vague pronouns like "that", "it" without context, or incomplete requests)
+3. Keep reformulations concise and in the same language as the input
+4. Preserve the user's intent exactly
+
+Examples:
+- "Hello!" → UNCHANGED (clear greeting)
+- "What is my PR?" → UNCHANGED (clear request)
+- "that thing" → "Could you clarify what you're referring to?"
+- "do it again" → "Could you clarify what action you'd like me to repeat?"
+- "150kg plates" → "Calculate the plates needed for 150kg"
+
+Return the reformulated query (or original if clear) and whether you changed it."""
+
+    try:
+        result = llm.invoke([HumanMessage(content=prompt_text)])
+        print(
+            f"Reformulation: changed={result.was_changed}, query='{result.reformulated}'"
+        )
+
+        # Use reformulated query for subsequent processing
+        return {"reformulated_input": result.reformulated}
+    except Exception as e:
+        print(f"---REFORMULATE ERROR: {e}, using original input---")
+        return {"reformulated_input": state.input}
+
+
+def classify_input(state: AgentState) -> dict:
+    """Classify input using heuristics and LLM."""
+    print("---CLASSIFY---")
+
+    query = (state.reformulated_input or state.input).lower().strip()
+
+    # 1. Fast Heuristics for Small Talk (Critical for avoiding tool loops on simple greetings)
+    small_talk_keywords = [
+        "hello",
+        "hi",
+        "hey",
+        "hola",
+        "greetings",
+        "good morning",
+        "good evening",
+        "thanks",
+        "thank you",
+        "thx",
+        "bye",
+        "goodbye",
+        "cya",
+        "cool",
+        "ok",
+        "okay",
+        "great",
+    ]
+    if query in small_talk_keywords or (
+        len(query) < 10 and any(k in query for k in ["hi", "hey", "hello"])
+    ):
+        print("Classification (Heuristic): small_talk")
+        return {"input_type": "small_talk"}
+
+    # 2. LLM Classification
+    print("---CLASSIFY (LLM)---")
     llm = get_fast_llm().with_structured_output(InputClassification)
 
     prompt_text = f"""Classify this user input for a powerlifting coach assistant:
 
-"{state.input}"
+"{state.reformulated_input or state.input}"
 
 Categories:
-- greeting: ONLY greetings, thanks, goodbye, emojis
-- command: User's data, numbers, weights, PRs, training, sheets, calculations
-- question: ONLY generic knowledge (What is RPE? IPF rules?)
+- small_talk: Greetings, thanks, goodbye, emojis, casual chat (NO data needed)
+- command: ANY request about the USER's personal data, training, sheets, calculations, PRs, schedule
+- question: ONLY general powerlifting knowledge NOT about the user (definitions, rules, techniques)
+
+KEY DISTINCTION: If the user asks about THEIR data ("my", "I", schedule, training block), it's COMMAND.
 
 Examples:
-- "Hello!" → greeting
-- "Thanks!" → greeting
+- "Hello!" → small_talk
+- "Thanks" → small_talk
 - "What was my best squat?" → command
-- "Summarize my training" → command
-- "What does my latest training sheet show?" → command
-- "highest number" → command
-- "Calculate 150kg plates" → command
+- "Summarize my training block" → command
 - "What is RPE?" → question
-- "How does periodization work?" → question
 
-When uncertain, default to 'command'.
-"""
-    messages = [HumanMessage(content=prompt_text)]
-    result = llm.invoke(messages)
-    print(f"Classification: {result}")
+When uncertain, default to 'command'."""
 
-    return {"input_type": result.input_type}
+    try:
+        # Use simpler invocation for small models
+        result = llm.invoke([HumanMessage(content=prompt_text)])
+        print(f"Classification: {result}")
+        return {"input_type": result.input_type}
+    except Exception as e:
+        print(f"---CLASSIFY ERROR: {e}, defaulting to command---")
+        # Fallback: if 'my' or 'I' or 'schedule' in text, likely command, else question
+        if any(
+            w in query for w in ["my", "i", "schedule", "training", "sheet", "program"]
+        ):
+            return {"input_type": "command"}
+        return {"input_type": "question"}
 
 
-def generate_greeting(state: AgentState) -> dict:
-    """Fast response for greetings without tools."""
-    print("---GREETING (FAST)---")
+def generate_small_talk(state: AgentState) -> dict:
+    """Fast response for greetings and casual chat without tools."""
+    print("---SMALL TALK (FAST)---")
 
     llm = get_fast_llm()
     messages = [
         SystemMessage(
-            content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings."
+            content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings and casual messages."
         ),
         HumanMessage(content=state.input),
     ]
     response = llm.invoke(messages)
     return {"answer": _extract_text(response.content)}
-
-
-SYSTEM_PROMPT = """You are an elite powerlifting coach assistant.
-
-## Guidelines
-- Be direct, technical, and concise
-- Use metric units (kg, cm) exclusively
-- Reference IPF rules when discussing competition standards
-- Structure responses with bullet points for programs/lists, markdown for clarity
-- For calculations, show your work briefly
-
-## Safety
-- Always recommend consulting a medical professional for injury-related concerns
-- Emphasize proper form and progressive overload principles
-- Flag if a request involves potentially dangerous loads or techniques
-
-## Knowledge Priority
-1. User's uploaded documents and training logs
-2. Personal notes and video transcripts from context
-3. IPF rulebook and general powerlifting knowledge
-4. Web search results (if other sources insufficient)
-
-## Data Source Guidelines
-- **Training Plan/History**: ALWAYS use `read_training_sheet` or `list_training_sheets` when the user asks about:
-  - "training block", "latest workout", "schedule", "volume", "intensity", "RPEs"
-  - "what did I do last week?", "how is my bench progressing?"
-- **YouTube**: Use `load_youtube_transcript` for specific video questions or technique advice if context exists.
-
-## Training Sheet Structure
-**Sheet naming**: CnumberBnumber format (e.g., C3B6 = Cycle 3 Block 6). Higher numbers = newer.
-
-**Layout**:
-- **Rows 1-6/8**: General info (Name, Period/Dátum, Payment date, etc.)
-- **Weeks**: Arranged HORIZONTALLY (Week 1, Week 2, etc. side-by-side in columns)
-- **Days**: Arranged VERTICALLY (Monday/Hétfő, Tuesday/Kedd, etc. stacked in rows)
-- **Day header**: 7 merged cells next to "Gyakorlat" column contain the day name
-- **Structure is FIXED for each week** (same column layout repeats)
-
-**Column Definitions** (repeat for each week):
-- **Gyakorlat** = Exercise Name
-- **Sor.** = Sets (Sorozat)
-- **Ism.** = Reps (Ismétlés)
-- **Súly** = Planned Weight (kg)
-- **RPE** = Rate of Perceived Exertion (1-10 scale)
-- **Tény** = Actual Weight Used (kg)
-- **Megjegyzés** = Notes/Comments
-
-## Tool Usage Guidelines
-- If a tool returns "No training data found" or an error, **DO NOT** call the same tool again with the same arguments.
-- If you have already called a tool and got a result, use that result to formulate your answer. **Do not call the tool again.**
-- Do not loop. If you are stuck, ask the user for clarification.
-- When reading training sheets, use **empty sheet_name** (like `sheet_name=''`) to get the default/latest sheet. Do NOT guess sheet names like 'C3B6'."""
-
-PLAN_PROMPT = """You are a powerlifting coach planning how to answer a user's request.
-
-Analyze the request and create a structured retrieval plan.
-
-## Output Format
-Return a brief plan with:
-- **Keywords**: 3-5 key terms to search for in documents
-- **Data needed**: What specific information is required (e.g., training logs, RPE data, PR history)
-- **Calculation**: Any formulas or math needed (IPF points, percentages, plate loading)
-
-## Example
-Request: "What should my squat opener be based on my recent training?"
-
-Plan:
-- Keywords: squat, training, RPE, max, opener
-- Data needed: Recent squat sessions, RPE ratings, rep maxes
-- Calculation: Calculate ~90% of estimated 1RM for conservative opener
-
----
-Request: {question}"""
-
-GRADE_PROMPT = """Assess if the retrieved document is relevant to answering the user's powerlifting question.
-
-Document is RELEVANT if it contains:
-- Direct information about the topic asked
-- Training data, exercises, or metrics mentioned in the question  
-- Rules or guidelines applicable to the question
-
-Document is NOT RELEVANT if it:
-- Discusses completely unrelated topics
-- Contains only generic information with no specific connection
-
-Respond with ONLY 'yes' or 'no'. No other text."""
 
 
 def plan_step(state: AgentState) -> dict:
@@ -192,20 +191,35 @@ def plan_step(state: AgentState) -> dict:
 
 
 def retrieve(state: AgentState) -> dict:
-    """Retrieve documents from vector store."""
+    """Retrieve documents from vector store with relevance scoring."""
     print("---RETRIEVE---")
-    question = state.input
+
+    # Use reformulated input if available
+    question = state.reformulated_input or state.input
 
     # Enhance search query with plan keywords
     print(f"Executing Plan:\n{state.plan}")
 
-    # Extract keywords from plan to enhance retrieval
     enhanced_query = question
     if state.plan:
-        # Combine question with plan for better semantic search
         enhanced_query = f"{question} {state.plan}"
 
-    context_text = search(enhanced_query)
+    try:
+        # Use scored search with top 5 documents
+        from src.rag import search_with_scores, format_scored_results
+
+        results = search_with_scores(enhanced_query)
+        context_text = format_scored_results(results)
+
+        if results:
+            print(
+                f"---RETRIEVED {len(results)} docs, scores: {[f'{s:.2f}' for _, s in results]}---"
+            )
+    except Exception as e:
+        print(f"---RETRIEVE ERROR: {e}, falling back to basic search---")
+        from src.rag import search
+
+        context_text = search(enhanced_query)
 
     # Search uploaded documents if available
     if state.chat_store:

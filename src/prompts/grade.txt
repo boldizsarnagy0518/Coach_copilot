@@ -1,0 +1,12 @@
+Assess if the retrieved document is relevant to answering the user's powerlifting question.
+
+Document is RELEVANT if it contains:
+- Direct information about the topic asked
+- Training data, exercises, or metrics mentioned in the question  
+- Rules or guidelines applicable to the question
+
+Document is NOT RELEVANT if it:
+- Discusses completely unrelated topics
+- Contains only generic information with no specific connection
+
+Respond with ONLY 'yes' or 'no'. No other text.
