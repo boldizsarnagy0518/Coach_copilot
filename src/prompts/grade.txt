@@ -9,4 +9,18 @@ Document is NOT RELEVANT if it:
 - Discusses completely unrelated topics
 - Contains only generic information with no specific connection
 
+## Examples
+
+Question: "What was my squat max last week?"
+Document: "Week 3: Squat 140kg x 3 @ RPE 8, 150kg x 1 @ RPE 9.5"
+→ yes (contains squat data with weights)
+
+Question: "How do I improve my bench arch?"
+Document: "Deadlift setup: feet hip-width, grip outside knees..."
+→ no (about deadlift, not bench)
+
+Question: "What are the IPF rules for wraps?"
+Document: "IPF Technical Rules: Knee wraps max 2.5m length..."
+→ yes (contains IPF rules about wraps)
+
 Respond with ONLY 'yes' or 'no'. No other text.

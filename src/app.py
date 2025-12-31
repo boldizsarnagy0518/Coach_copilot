@@ -476,11 +476,18 @@ async def send(input_field, container, state: SessionState):
         with ui.column().classes("msg-user w-full items-end"):
             ui.label(text).classes("text-sm")
 
+    # Create thinking status label that updates in real-time
+    thinking_label = None
     with container:
         thinking_ui = ui.row().classes("items-center gap-2")
         with thinking_ui:
             ui.spinner(size="sm").classes("dim")
-            ui.label("Thinking...").classes("text-xs text-[#555]")
+            thinking_label = ui.label("Starting...").classes("text-xs text-[#555]")
+
+    def update_status(step_name: str):
+        """Callback to update thinking label in real-time."""
+        if thinking_label:
+            thinking_label.set_text(step_name)
 
     try:
         sheets_context = ""
@@ -500,12 +507,13 @@ async def send(input_field, container, state: SessionState):
             else:
                 history_objects.append(("ai", msg["content"]))
 
-        # Get response with thinking steps
+        # Get response with thinking steps and real-time updates
         result = await chat(
             text + sheets_context,
             state.chat_store,
             chat_history=history_objects,
             include_thinking=True,
+            on_step=update_status,
         )
 
         response = result["answer"]
@@ -513,19 +521,19 @@ async def send(input_field, container, state: SessionState):
 
         thinking_ui.delete()
 
-        # Display simplified thinking summary (compact single line)
+        # Display simplified thinking summary (compact single line, no emojis)
         if state.thinking_enabled and thinking_steps:
-            # User-friendly translations for technical terms
+            # User-friendly translations (no emojis)
             node_names = {
-                "reformulate": "📝 Understanding",
-                "classify": "🔍 Analyzing",
-                "plan": "📋 Planning",
-                "retrieve": "📚 Searching",
-                "grade_documents": "⚖️ Evaluating",
-                "call_agent": "🤖 Thinking",
-                "tools": "🔧 Using tools",
-                "generate": "✏️ Writing",
-                "small_talk": "💬 Chatting",
+                "reformulate": "Understanding",
+                "classify": "Analyzing",
+                "plan": "Planning",
+                "retrieve": "Searching",
+                "grade_documents": "Evaluating",
+                "call_agent": "Thinking",
+                "tools": "Using tools",
+                "generate": "Writing",
+                "small_talk": "Responding",
             }
             type_names = {
                 "small_talk": "quick reply",

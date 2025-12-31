@@ -171,4 +171,30 @@ Delete this section once reviews begin.
 
 ---
 
-_Last updated: 2025-12-31 09:44_
+## Review - 2025-12-31 09:55
+
+### ✅ Approved Items
+
+- **Feature:** Instructor Client Caching
+- **File:** `src/utils/instructor_client.py`
+- **Resolution:** Added singleton pattern to cache the Instructor client, avoiding recreation on every call.
+
+- **Feature:** PydanticAI Lazy Initialization
+- **File:** `src/agent/reformulate_agent.py`
+- **Resolution:** Refactored to use lazy initialization with explicit OpenAI client configuration. Removed global `os.environ` modification at import time, improving thread-safety and avoiding side effects.
+
+- **Feature:** Real-time Chain of Thought
+- **Files:** `src/agent/runner.py`, `src/app.py`
+- **Resolution:** Added `on_step` callback to chat function for real-time UI updates. Thinking label now shows current step (e.g., "Understanding query...", "Searching documents...") instead of static "Thinking...".
+
+- **Feature:** Enhanced Few-Shot Prompting
+- **Files:** `src/agent/nodes.py`, `src/prompts/grade.txt`
+- **Resolution:** Expanded classify prompt from 5 to 17 examples including Hungarian greetings and edge cases. Added 3 concrete examples to grade prompt for yes/no decisions.
+
+- **Feature:** Message Alignment
+- **File:** `src/app.py`
+- **Resolution:** Bot messages now align left (`align-self: flex-start`), user messages align right (`align-self: flex-end`). Removed emojis from CoT display per user request.
+
+---
+
+_Last updated: 2025-12-31 09:55_

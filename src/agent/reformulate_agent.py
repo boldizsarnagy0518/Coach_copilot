@@ -1,11 +1,15 @@
+"""Query reformulation agent using PydanticAI."""
+
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
+from openai import AsyncOpenAI
 from src.config import settings
-import os
 
 
 class ReformulationResult(BaseModel):
+    """Structured output for query reformulation."""
+
     reformulated: str = Field(
         description="The clarified query (or original if already clear)"
     )
@@ -14,18 +18,33 @@ class ReformulationResult(BaseModel):
     )
 
 
-# Configure environment for PydanticAI to use Ollama
-base_url = settings.ollama_base_url
-if not base_url.endswith("/v1"):
-    base_url = f"{base_url.rstrip('/')}/v1"
+def _create_model() -> OpenAIModel:
+    """Create OpenAI model configured for Ollama."""
+    base_url = settings.ollama_base_url
+    if not base_url.endswith("/v1"):
+        base_url = f"{base_url.rstrip('/')}/v1"
 
-os.environ["OPENAI_BASE_URL"] = base_url
-os.environ["OPENAI_API_KEY"] = "ollama"
+    # Use explicit client configuration instead of environment variables
+    client = AsyncOpenAI(
+        base_url=base_url,
+        api_key="ollama",
+    )
+    return OpenAIModel(settings.ollama_fast_model, openai_client=client)
 
-reformulate_agent = Agent(
-    model=OpenAIModel(settings.ollama_fast_model),
-    output_type=ReformulationResult,
-    system_prompt="""You are a query reformulation assistant for a powerlifting coach AI.
+
+# Lazy-initialized agent (created on first access)
+_reformulate_agent = None
+
+
+def get_reformulate_agent() -> Agent:
+    """Get or create the reformulation agent."""
+    global _reformulate_agent
+
+    if _reformulate_agent is None:
+        _reformulate_agent = Agent(
+            model=_create_model(),
+            output_type=ReformulationResult,
+            system_prompt="""You are a query reformulation assistant for a powerlifting coach AI.
 
 RULES:
 1. If the input is CLEAR and UNAMBIGUOUS → return it UNCHANGED
@@ -41,4 +60,6 @@ Examples:
 - "150kg plates" → "Calculate the plates needed for 150kg"
 
 Return the reformulated query (or original if clear) and whether you changed it.""",
-)
+        )
+
+    return _reformulate_agent

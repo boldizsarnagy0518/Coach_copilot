@@ -8,7 +8,7 @@ from langchain_community.tools import DuckDuckGoSearchRun
 
 from src.llm import get_llm, get_fast_llm
 from src.agent.state import AgentState
-from src.agent.reformulate_agent import reformulate_agent
+from src.agent.reformulate_agent import get_reformulate_agent
 from src.tools import ALL_TOOLS
 from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
 
@@ -57,7 +57,8 @@ def reformulate_query(state: AgentState) -> dict:
 
     try:
         # Run the agent synchronously
-        result = reformulate_agent.run_sync(state.input)
+        agent = get_reformulate_agent()
+        result = agent.run_sync(state.input)
         print(
             f"Reformulation: changed={result.data.was_changed}, query='{result.data.reformulated}'"
         )
@@ -119,10 +120,20 @@ KEY DISTINCTION: If the user asks about THEIR data ("my", "I", schedule, trainin
 
 Examples:
 - "Hello!" → small_talk
+- "Szia!" → small_talk
 - "Thanks" → small_talk
+- "Köszi szépen" → small_talk
+- "Goodbye, see you!" → small_talk
+- "How are you?" → small_talk
 - "What was my best squat?" → command
 - "Summarize my training block" → command
+- "What did I do last week?" → command
+- "Calculate IPF points for 500 total" → command
+- "What plates for 180kg?" → command
+- "Show my schedule" → command
 - "What is RPE?" → question
+- "How does peaking work?" → question
+- "What are the IPF rules for bench?" → question
 
 When uncertain, default to 'command'."""
 

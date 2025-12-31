@@ -67,6 +67,10 @@ Intelligent rescheduling and plan modification.
 - **Advanced Search**: `crawl_url` tool for deep page extraction using WebBaseLoader
 - **Competition Countdown**: `competition_countdown` tool with weeks/days + peaking advice
 - **UI Layout Improvements**: Centered welcome screen aligned with input area, responsive chat-area width (85% max-width)
+- **Real-time Status**: Live CoT updates showing current step (Understanding → Analyzing → Searching → Writing)
+- **Enhanced Few-Shot**: 17 classify examples, 3 grade examples for better small model accuracy
+- **Lazy Initialization**: Instructor client caching, PydanticAI agent lazy loading for better performance
+- **Message Alignment**: Bot messages left-aligned, user messages right-aligned for chat-like UX
 
 ### Planned
 
