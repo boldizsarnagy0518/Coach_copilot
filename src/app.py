@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from nicegui import ui, app
+
 from src.agent.runner import chat
 from src.rag import create_chat_vectorstore, load_pdf, load_text, index_base_knowledge
 from src.tools.sheets import (
@@ -19,7 +20,7 @@ from src.tools.sheets import (
 )
 from src.config import settings
 
-MAX_SESSIONS = 10  # Keep last 10 sessions per user
+MAX_SESSIONS = 10
 
 
 def get_athlete_pins() -> dict:
@@ -125,7 +126,7 @@ def add_styles():
         
         .chat-area { 
             width: 100%; 
-            max-width: 1200px; 
+            max-width: 85%; 
             height: 100%; 
             background: var(--bg-chat); 
             display: flex; 
@@ -137,7 +138,7 @@ def add_styles():
         
         .header { 
             border-bottom: 1px solid var(--border); 
-            padding: 1rem 1.5rem; 
+            padding: 1rem 2rem; 
             background: rgba(20,20,20,0.9); 
             backdrop-filter: blur(8px); 
             z-index: 10; 
@@ -145,13 +146,13 @@ def add_styles():
         }
         
         /* Messages */
-        .msg-container { padding: 1rem 1.5rem; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 1rem; scroll-behavior: smooth; }
-        .msg-user { background: #262626; border: 1px solid #333; color: white; border-radius: 12px 12px 2px 12px; padding: 10px 16px; margin-left: auto; max-width: 80%; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .msg-bot { background: transparent; padding-left: 0; max-width: 85%; }
+        .msg-container { padding: 2rem; overflow-y: auto; flex-grow: 1; display: flex !important; flex-direction: column !important; align-items: stretch !important; justify-content: flex-start !important; scroll-behavior: smooth; gap: 1rem; }
+        .msg-user { background: #262626; border: 1px solid #333; color: white; border-radius: 12px 12px 2px 12px; padding: 10px 16px; align-self: flex-end; max-width: 80%; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+        .msg-bot { background: transparent; padding-left: 0; max-width: 85%; align-self: flex-start; }
         
         /* Input Area */
-        .input-wrapper { padding: 1.5rem; background: var(--bg-chat); border-top: 1px solid var(--border); flex-shrink: 0; }
-        .input-area { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 16px; display: flex; align-items: center; transition: border-color 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .input-wrapper { padding: 2rem; background: var(--bg-chat); border-top: 1px solid var(--border); flex-shrink: 0; display: flex !important; align-items: center !important; justify-content: center !important; }
+        .input-area { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 6px 6px 6px 16px; display: flex; align-items: center; transition: border-color 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2); width: 100%; max-width: 900px; margin: 0 auto !important; }
         .input-area:focus-within { border-color: #555; }
         .input-box { color: white !important; }
         .input-box .q-field__native { color: white !important; }
@@ -177,6 +178,7 @@ def add_styles():
         /* Utils */
         .dim { opacity: 0.5; }
         .welcome-text { background: linear-gradient(to right, #fff, #999); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 600; font-size: 1.5rem; text-align: center; margin-bottom: 0.5rem; }
+        .welcome-box { flex-grow: 1; display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; width: 100%; }
     </style>
     """)
 
@@ -341,7 +343,7 @@ def main(session_id: str = None):
                         ).classes("text-xs text-gray-400 no-underline hover:text-white")
 
                 # Messages Container
-                msg_container = ui.column().classes("msg-container")
+                msg_container = ui.column().classes("msg-container w-full")
 
                 with msg_container:
                     if state.messages:
@@ -354,10 +356,22 @@ def main(session_id: str = None):
                             else:
                                 with ui.column().classes("msg-bot"):
                                     ui.markdown(msg["content"]).classes("text-sm")
-                    else:
-                        # Welcome Screen
-                        with ui.column().classes(
-                            "w-full h-full items-center justify-center gap-6 mt-12"
+
+                # Welcome Screen (uses same structure as input-wrapper for alignment)
+                if not state.messages:
+                    with (
+                        ui.column()
+                        .classes("input-wrapper w-full items-center justify-center")
+                        .style("border-top: none; flex-grow: 1;")
+                    ):
+                        with (
+                            ui.column()
+                            .classes(
+                                "input-area gap-6 text-center items-center justify-center"
+                            )
+                            .style(
+                                "background: transparent; border: none; box-shadow: none;"
+                            )
                         ):
                             ui.icon("bolt", size="xl").classes("text-[#333] mb-4")
                             ui.label(f"Ready to train, {athlete_name}?").classes(
@@ -365,7 +379,7 @@ def main(session_id: str = None):
                             )
 
                             with ui.row().classes(
-                                "gap-3 justify-center flex-wrap max-w-lg"
+                                "gap-3 justify-center flex-wrap w-full px-4"
                             ):
                                 prompts = [
                                     "Calculate IPF points for 600 total @ 83kg",
@@ -381,12 +395,14 @@ def main(session_id: str = None):
                                         ),
                                     )
 
-                            ui.label("AI can make mistakes. Trust your coach.").classes(
-                                "text-[10px] text-[#333] mt-8"
-                            )
+                            ui.label(
+                                "AI can make mistakes. About important decisions always consult your coach."
+                            ).classes("text-[10px] text-[#333] mt-8")
 
                 # Input Area
-                with ui.column().classes("input-wrapper"):
+                with ui.column().classes(
+                    "input-wrapper w-full items-center justify-center"
+                ):
                     with ui.row().classes("input-area w-full gap-2"):
                         upload = (
                             ui.upload(
@@ -499,17 +515,38 @@ async def send(input_field, container, state: SessionState):
 
         # Display simplified thinking summary (compact single line)
         if state.thinking_enabled and thinking_steps:
-            # Build compact flow: node1 → node2 → node3
+            # User-friendly translations for technical terms
+            node_names = {
+                "reformulate": "📝 Understanding",
+                "classify": "🔍 Analyzing",
+                "plan": "📋 Planning",
+                "retrieve": "📚 Searching",
+                "grade_documents": "⚖️ Evaluating",
+                "call_agent": "🤖 Thinking",
+                "tools": "🔧 Using tools",
+                "generate": "✏️ Writing",
+                "small_talk": "💬 Chatting",
+            }
+            type_names = {
+                "small_talk": "quick reply",
+                "command": "action",
+                "complex_question": "deep search",
+            }
+
+            # Build compact flow with user-friendly names
             flow_parts = []
             for step in thinking_steps:
-                part = step["node"]
+                friendly_name = node_names.get(step["node"], step["node"])
                 if "classified_as" in step:
-                    part += f"({step['classified_as']})"
-                flow_parts.append(part)
+                    friendly_type = type_names.get(
+                        step["classified_as"], step["classified_as"]
+                    )
+                    friendly_name += f" ({friendly_type})"
+                flow_parts.append(friendly_name)
 
             # Show as compact inline text
             with container:
-                ui.label(f"🧠 {' → '.join(flow_parts)}").classes(
+                ui.label(f"{' → '.join(flow_parts)}").classes(
                     "text-xs text-[#555] mb-1"
                 )
 

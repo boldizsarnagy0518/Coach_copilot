@@ -10,7 +10,7 @@ from src.llm import get_llm, get_fast_llm
 from src.agent.state import AgentState
 from src.agent.reformulate_agent import reformulate_agent
 from src.tools import ALL_TOOLS
-from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT
+from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
 
 from typing import Literal
 from src.utils.instructor_client import get_instructor_client
@@ -81,6 +81,7 @@ def classify_input(state: AgentState) -> dict:
         "hola",
         "greetings",
         "good morning",
+        "good afternoon",
         "good evening",
         "thanks",
         "thank you",
@@ -92,9 +93,10 @@ def classify_input(state: AgentState) -> dict:
         "ok",
         "okay",
         "great",
+        "hello there",
     ]
     if query in small_talk_keywords or (
-        len(query) < 10 and any(k in query for k in ["hi", "hey", "hello"])
+        len(query) < 20 and any(k in query for k in ["hi", "hey", "hello"])
     ):
         print("Classification (Heuristic): small_talk")
         return {"input_type": "small_talk"}
@@ -274,16 +276,12 @@ def grade_documents(state: AgentState) -> dict:
         client = get_instructor_client()
 
         # We construct the prompt content manually for the message
-        prompt_content = f"""You are a grader assessing relevance of a retrieved document to a user question.
+        prompt_content = f"""{GRADE_PROMPT}
 
 Retrieved document:
 {context}
 
-User question: {question}
-
-If the document contains keyword(s) or semantic meaning related to the user question, grade it as 'yes'.
-It does not need to be a stringent test. The goal is to filter out erroneous retrievals.
-Give a binary score 'yes' or 'no' score to indicate whether the document is relevant to the question."""
+User question: {question}"""
 
         grade = client.chat.completions.create(
             model=settings.ollama_fast_model,  # Use fast model for grading

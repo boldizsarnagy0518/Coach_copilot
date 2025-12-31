@@ -18,7 +18,10 @@ src/
 │   ├── graph.py     # State machine with tool calling
 │   ├── nodes.py     # Plan, Retrieve, Grade, Generate
 │   ├── state.py     # Pydantic state schema
-│   └── runner.py    # Entry point
+│   ├── runner.py    # Entry point
+│   └── reformulate_agent.py # PydanticAI Agent
+├── utils/           # Utilities
+│   └── instructor_client.py # Patched LLM client
 └── app.py           # NiceGUI web UI
 ```
 
@@ -32,6 +35,7 @@ src/
 | Vector Store  | ChromaDB                     |
 | UI            | NiceGUI (includes FastAPI)   |
 | Tools         | LangChain @tool decorators   |
+| Frameworks    | PydanticAI, Instructor       |
 | YouTube       | youtube-transcript-api       |
 | Sheets        | gspread + google-auth        |
 
@@ -59,6 +63,8 @@ src/
 
 ```
 User Question
+    ↓
+[Reformulate Node] → Clarified Query (PydanticAI)
     ↓
 [Classify Node] → Greeting/Command? ──→ [Agent Node] (Fast Path)
     ↓ (Complex Question)

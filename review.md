@@ -106,10 +106,69 @@ Delete this section once reviews begin.
 - **Feature:** UI & UX Enhancements (Thinking, Sessions, Sources)
 - **Files:** `src/app.py`, `src/rag.py`
 - **Resolution:**
+
   - **Thinking Display:** Implemented collapsible `ui.expansion` showing reasoning steps in `app.py`.
   - **Chat Sessions:** Implemented session persistence, sidebar history, and load/delete functionality.
   - **Clickable Links:** Source metadata added to RAG context in `formatting_scored_results`.
 
+- **Feature:** Infrastructure & Testing
+- **Files:** `pyproject.toml`, `tests/`, `restart.ps1`
+- **Resolution:**
+
+  - **Dependencies:** Updated `pyproject.toml` with testing and observability libs.
+  - **Tests:** Added comprehensive unit tests for RAG loaders and robust `conftest.py` fixtures.
+  - **Scripts:** Added `restart.ps1` for easy dev iteration.
+
+- **Feature:** YouTube Tool
+- **File:** `src/tools/youtube.py`
+- **Resolution:** Implemented transcript loading and channel info tools with proper error handling.
+
+- **Feature:** Web Search & Tools
+- **Files:** `src/tools/web_search.py`, `src/tools/__init__.py`
+- **Resolution:** Implemented `search_web`, `crawl_url`, and `competition_countdown`. All tools correctly exported and integrated.
+
+### 🟢 Suggestion
+
+- **File:** `src/agent/nodes.py` vs `src/prompts/grade.txt`
+- **Issue:** `grade_documents` node uses an inline prompt string for Instructor, while `grade.txt` exists but appears unused for this specific node.
+- **Suggestion:** Consolidate to use `load_prompt("grade")` if possible, or delete `grade.txt` if the inline prompt is preferred for structured output models.
+
+- **Feature:** PydanticAI Integration
+- **Files:** `src/agent/reformulate_agent.py`, `src/agent/nodes.py`
+- **Resolution:** Implemented `reformulate_agent` using PydanticAI with `run_sync`. Replaced previous LangChain implementation in `reformulate_query` node.
+
+- **Feature:** Documentation
+- **File:** `Architecture.md`
+- **Resolution:** Updated tech stack and file structure to include PydanticAI and new agent files.
+
 ---
 
-_Last updated: 2025-12-31 05:45_
+## Review - 2025-12-31 09:44
+
+### ✅ Approved Items
+
+- **Feature:** UI Welcome Screen Centering
+- **File:** `src/app.py`
+- **Resolution:** Fixed horizontal misalignment between welcome screen and input area. Root cause was `msg-container` missing `w-full` class, causing it to shrink to content width (964px) instead of spanning full width (1559px) like `input-wrapper`. Added `w-full` class to ensure both containers have identical centering behavior.
+
+- **Feature:** DevTools-Assisted Debugging
+- **Resolution:** Used browser subagent with JavaScript execution to measure exact pixel positions and identify the misalignment (~145 unit offset). This approach proved essential for diagnosing framework-level CSS conflicts.
+
+- **Feature:** Layout Refinements
+- **File:** `src/app.py`
+- **Resolution:**
+  - Reduced `chat-area` max-width from 95% to 85% for more black space on the right edge.
+  - Standardized padding between `msg-container` and `input-wrapper` (both use `2rem`).
+  - Applied multiple centering strategies: CSS `!important` overrides, Quasar utility classes, and inline styles.
+
+### 🟢 Suggestions
+
+- **File:** `src/app.py`
+- **Suggestion:** Consider extracting CSS styles into a separate `.css` file for better maintainability. The current inline CSS in `add_styles()` function is over 100 lines.
+
+- **File:** `src/app.py`
+- **Suggestion:** The welcome screen structure was refactored multiple times. Consider adding a comment explaining why `w-full` is required on `msg-container` to prevent future regressions.
+
+---
+
+_Last updated: 2025-12-31 09:44_

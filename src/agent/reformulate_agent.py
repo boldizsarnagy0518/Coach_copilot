@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from src.config import settings
+import os
 
 
 class ReformulationResult(BaseModel):
@@ -13,21 +14,17 @@ class ReformulationResult(BaseModel):
     )
 
 
-# Configure Ollama model via OpenAI compatibility
-model_name = settings.ollama_fast_model
+# Configure environment for PydanticAI to use Ollama
 base_url = settings.ollama_base_url
 if not base_url.endswith("/v1"):
     base_url = f"{base_url.rstrip('/')}/v1"
 
-model = OpenAIModel(
-    model_name=model_name,
-    base_url=base_url,
-    api_key="ollama",
-)
+os.environ["OPENAI_BASE_URL"] = base_url
+os.environ["OPENAI_API_KEY"] = "ollama"
 
 reformulate_agent = Agent(
-    model,
-    result_type=ReformulationResult,
+    model=OpenAIModel(settings.ollama_fast_model),
+    output_type=ReformulationResult,
     system_prompt="""You are a query reformulation assistant for a powerlifting coach AI.
 
 RULES:

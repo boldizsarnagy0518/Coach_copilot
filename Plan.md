@@ -66,6 +66,7 @@ Intelligent rescheduling and plan modification.
 - **Chat Sessions**: Session sidebar with new/switch/delete, persisted per-user (last 10 sessions)
 - **Advanced Search**: `crawl_url` tool for deep page extraction using WebBaseLoader
 - **Competition Countdown**: `competition_countdown` tool with weeks/days + peaking advice
+- **UI Layout Improvements**: Centered welcome screen aligned with input area, responsive chat-area width (85% max-width)
 
 ### Planned
 
