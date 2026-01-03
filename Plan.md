@@ -71,6 +71,7 @@ Intelligent rescheduling and plan modification.
 - **Enhanced Few-Shot**: 17 classify examples, 3 grade examples for better small model accuracy
 - **Lazy Initialization**: Instructor client caching, PydanticAI agent lazy loading for better performance
 - **Message Alignment**: Bot messages left-aligned, user messages right-aligned for chat-like UX
+- **YouTube Data API**: Channel search, video details, playlist listing (10K units/day free tier)
 
 ### Planned
 
@@ -78,7 +79,7 @@ Intelligent rescheduling and plan modification.
 
 ### Optional Extensions
 
-- **YouTube Data API**: Enable channel search, video listing, metadata access
+- **Voice Input**: Speech-to-text for hands-free coaching queries
 
 ## Framework Considerations
 

@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     athlete_pins: str = "{}"
 
     youtube_channel_url: str = "https://www.youtube.com/@boldinagy"
+    youtube_api_key: str | None = None
+    youtube_channel_id: str | None = (
+        None  # e.g., "UCxxxxxxxx" - can be found in channel URL
+    )
 
     @property
     def is_production(self) -> bool:

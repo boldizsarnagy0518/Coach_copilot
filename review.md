@@ -197,4 +197,40 @@ Delete this section once reviews begin.
 
 ---
 
-_Last updated: 2025-12-31 09:55_
+_Last updated: 2025-12-31 10:00_
+
+---
+
+## Review - 2025-12-31 10:00
+
+### ✅ Approved Items
+
+- **Feature:** Performance & Refactoring
+- **Files:** `src/agent/nodes.py`, `src/utils/instructor_client.py`, `src/config.py`
+- **Resolution:**
+
+  - **Singleton Pattern:** `instructor_client` is now a singleton.
+  - **Prompt Consistency:** `grade_documents` successfully integrates `GRADE_PROMPT` constant.
+  - **Refactoring:** `config.py` remains clean and type-safe.
+
+- **Feature:** Documentation
+- **File:** `Plan.md`
+- **Resolution:** Updated "Implemented" section with "Lazy Initialization", "Real-time Status", and other recent features.
+
+---
+
+## Review - 2026-01-03 03:15
+
+### ✅ Approved Items
+
+- **Feature:** YouTube Data API Integration
+- **Files:** `src/tools/youtube.py`, `src/config.py`
+- **Resolution:**
+  - Added 3 new tools: `search_channel_videos`, `get_video_details`, `list_channel_playlists`.
+  - Lazy initialization of YouTube API client.
+  - Graceful fallback to URL-based suggestions when API key is missing.
+  - Config updated with `youtube_api_key` and `youtube_channel_id` fields.
+
+---
+
+_Last updated: 2026-01-03 03:15_
