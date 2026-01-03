@@ -25,20 +25,10 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = "models/text-embedding-004"
 
     chroma_persist_directory: Path = Path("./data/chroma_db")
+    duckdb_path: Path = Path("./data/athlete_data.duckdb")
 
-    google_sheets_credentials_path: str | None = "secrets/credentials.json"
+    google_sheets_credentials_path: Path = Path("secrets/credentials.json")
     google_sheets_spreadsheet_id: str | None = None
-
-    @property
-    def credentials_path(self) -> Path:
-        """Resolve absolute path to credentials."""
-        if not self.google_sheets_credentials_path:
-            return Path("secrets/credentials.json")
-
-        cwd_path = Path.cwd() / self.google_sheets_credentials_path
-        if cwd_path.exists():
-            return cwd_path
-        return Path(self.google_sheets_credentials_path)
 
     athlete_pins: str = "{}"
 

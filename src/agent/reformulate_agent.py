@@ -24,12 +24,18 @@ def _create_model() -> OpenAIModel:
     if not base_url.endswith("/v1"):
         base_url = f"{base_url.rstrip('/')}/v1"
 
-    # Use explicit client configuration instead of environment variables
+    # Use explicit client configuration via provider wrapper
+    # PydanticAI expects the provider object to have a .client attribute
+    class SimpleProvider:
+        def __init__(self, client):
+            self.client = client
+            self.model_profile = None
+
     client = AsyncOpenAI(
         base_url=base_url,
         api_key="ollama",
     )
-    return OpenAIModel(settings.ollama_fast_model, openai_client=client)
+    return OpenAIModel(settings.ollama_fast_model, provider=SimpleProvider(client))
 
 
 # Lazy-initialized agent (created on first access)

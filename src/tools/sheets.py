@@ -34,7 +34,9 @@ class UpdateCellInput(BaseModel):
 def _get_client(credentials_path: str = None):
     """Shared helper to get authenticated gspread client."""
     creds_path = (
-        Path(credentials_path) if credentials_path else settings.credentials_path
+        Path(credentials_path)
+        if credentials_path
+        else settings.google_sheets_credentials_path
     )
     if not creds_path.exists():
         return None

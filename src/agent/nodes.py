@@ -15,6 +15,7 @@ from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
 from typing import Literal
 from src.utils.instructor_client import get_instructor_client
 from src.config import settings
+from src.utils.logger import agent_logger
 
 
 class Grade(BaseModel):
@@ -53,24 +54,24 @@ class InputClassification(BaseModel):
 
 def reformulate_query(state: AgentState) -> dict:
     """Reformulate ambiguous queries using PydanticAI agent."""
-    print("---REFORMULATE (PydanticAI)---")
+    agent_logger.info("Reformulating query with PydanticAI")
 
     try:
         # Run the agent synchronously
         agent = get_reformulate_agent()
         result = agent.run_sync(state.input)
-        print(
+        agent_logger.debug(
             f"Reformulation: changed={result.data.was_changed}, query='{result.data.reformulated}'"
         )
         return {"reformulated_input": result.data.reformulated}
     except Exception as e:
-        print(f"---REFORMULATE ERROR: {e}, using original input---")
+        agent_logger.warning(f"Reformulate error: {e}, using original input")
         return {"reformulated_input": state.input}
 
 
 def classify_input(state: AgentState) -> dict:
     """Classify input using heuristics and LLM (via Instructor)."""
-    print("---CLASSIFY---")
+    agent_logger.info("Classifying input")
 
     query = (state.reformulated_input or state.input).lower().strip()
 
@@ -99,11 +100,11 @@ def classify_input(state: AgentState) -> dict:
     if query in small_talk_keywords or (
         len(query) < 20 and any(k in query for k in ["hi", "hey", "hello"])
     ):
-        print("Classification (Heuristic): small_talk")
+        agent_logger.debug("Classification (Heuristic): small_talk")
         return {"input_type": "small_talk"}
 
     # 2. LLM Classification with Instructor
-    print("---CLASSIFY (Instructor)---")
+    agent_logger.debug("Using Instructor for classification")
 
     try:
         client = get_instructor_client()
@@ -113,24 +114,24 @@ def classify_input(state: AgentState) -> dict:
 
 Categories:
 - small_talk: Greetings, thanks, goodbye, emojis, casual chat (NO data needed)
-- command: ANY request about the USER's personal data, training, sheets, calculations, PRs, schedule
+- command: ANY request about the USER's personal data, training, sheets, calculations, PRs, schedule, RPE, or competitions
 - question: ONLY general powerlifting knowledge NOT about the user (definitions, rules, techniques)
 
-KEY DISTINCTION: If the user asks about THEIR data ("my", "I", schedule, training block), it's COMMAND.
+KEY DISTINCTION: If the user asks about THEIR data ("my", "I", schedule, training block, RPE, history), it's COMMAND.
 
 Examples:
 - "Hello!" → small_talk
-- "Szia!" → small_talk
 - "Thanks" → small_talk
-- "Köszi szépen" → small_talk
 - "Goodbye, see you!" → small_talk
-- "How are you?" → small_talk
 - "What was my best squat?" → command
 - "Summarize my training block" → command
-- "What did I do last week?" → command
 - "Calculate IPF points for 500 total" → command
 - "What plates for 180kg?" → command
-- "Show my schedule" → command
+- "Show my RPE history" → command
+- "Log my squat 150kg x 3 @ RPE 8" → command
+- "Show my PRs" → command
+- "Record my meet results" → command
+- "Compare my training to competition" → command
 - "What is RPE?" → question
 - "How does peaking work?" → question
 - "What are the IPF rules for bench?" → question
@@ -144,11 +145,11 @@ When uncertain, default to 'command'."""
             messages=[{"role": "user", "content": prompt_text}],
             max_retries=2,
         )
-        print(f"Classification: {result}")
+        agent_logger.debug(f"Classification: {result}")
         return {"input_type": result.input_type}
 
     except Exception as e:
-        print(f"---CLASSIFY ERROR: {e}, defaulting to command---")
+        agent_logger.warning(f"Classify error: {e}, defaulting to command")
         # Fallback: reasonable defaults
         if any(
             w in query for w in ["my", "i", "schedule", "training", "sheet", "program"]
@@ -159,7 +160,7 @@ When uncertain, default to 'command'."""
 
 def generate_small_talk(state: AgentState) -> dict:
     """Fast response for greetings and casual chat without tools."""
-    print("---SMALL TALK (FAST)---")
+    agent_logger.info("Generating small talk response")
 
     try:
         llm = get_fast_llm()
@@ -172,7 +173,7 @@ def generate_small_talk(state: AgentState) -> dict:
         response = llm.invoke(messages)
         return {"answer": _extract_text(response.content)}
     except Exception as e:
-        print(f"---SMALL TALK ERROR: {e}---")
+        agent_logger.error(f"Small talk error: {e}")
         return {
             "answer": f"I'm having trouble connecting to my brain (LLM Error: {str(e)[:100]}). Please check if Ollama is running and the model is pulled."
         }
@@ -180,7 +181,7 @@ def generate_small_talk(state: AgentState) -> dict:
 
 def generate(state: AgentState) -> dict:
     """Generate answer."""
-    print("---GENERATE---")
+    agent_logger.info("Generating response")
     question = state.input
     context = state.context
     plan = state.plan
@@ -365,12 +366,18 @@ You have access to the following tools:
 - list_training_sheets: List available training sheets
 - load_youtube_transcript: Load transcript from a YouTube video
 - search_web: Search the web for information
+- log_rpe: Log RPE (Rate of Perceived Exertion) for a workout set
+- get_rpe_history: Get RPE history for exercises over time
+- record_meet_result: Record powerlifting competition results
+- get_pr_history: Get personal record (PR) progression
+- compare_to_competition: Compare training to competition results
 
 CRITICAL RULES:
 1. For GREETINGS ("Hello", "Hi"): DO NOT USE ANY TOOLS. Just reply friendly.
 2. If you already received tool results in the conversation, USE THAT DATA to answer. DO NOT call the same tool again.
 3. If you have enough information to answer, RESPOND DIRECTLY without calling tools.
-4. Only call a tool if you genuinely lack the information needed."""
+4. Only call a tool if you genuinely lack the information needed.
+5. For RPE history questions, use get_rpe_history (NOT training sheets)."""
         ),
     ]
     messages.extend(history)

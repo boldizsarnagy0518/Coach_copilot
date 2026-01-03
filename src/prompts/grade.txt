@@ -1,3 +1,5 @@
+Think step by step: Does this document help answer the user's specific question?
+
 Assess if the retrieved document is relevant to answering the user's powerlifting question.
 
 Document is RELEVANT if it contains:

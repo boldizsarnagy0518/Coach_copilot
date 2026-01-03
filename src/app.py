@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from pydantic import BaseModel, Field
 from nicegui import ui, app
+from fastapi import Response
 
 from src.agent.runner import chat
 from src.rag import create_chat_vectorstore, load_pdf, load_text, index_base_knowledge
@@ -19,6 +20,7 @@ from src.tools.sheets import (
     get_spreadsheet_by_name,
 )
 from src.config import settings
+from src.utils.logger import app_logger
 
 MAX_SESSIONS = 10
 
@@ -346,32 +348,12 @@ def main(session_id: str = None):
                 msg_container = ui.column().classes("msg-container w-full")
 
                 with msg_container:
-                    if state.messages:
-                        for msg in state.messages:
-                            if msg["role"] == "user":
-                                with ui.column().classes("msg-user"):
-                                    ui.label(msg["content"]).classes(
-                                        "text-sm leading-relaxed"
-                                    )
-                            else:
-                                with ui.column().classes("msg-bot"):
-                                    ui.markdown(msg["content"]).classes("text-sm")
-
-                # Welcome Screen (uses same structure as input-wrapper for alignment)
-                if not state.messages:
-                    with (
-                        ui.column()
-                        .classes("input-wrapper w-full items-center justify-center")
-                        .style("border-top: none; flex-grow: 1;")
-                    ):
+                    # Welcome Screen - shows only when no messages
+                    if not state.messages:
                         with (
                             ui.column()
-                            .classes(
-                                "input-area gap-6 text-center items-center justify-center"
-                            )
-                            .style(
-                                "background: transparent; border: none; box-shadow: none;"
-                            )
+                            .classes("w-full items-center justify-center")
+                            .style("flex-grow: 1; min-height: 300px;")
                         ):
                             ui.icon("bolt", size="xl").classes("text-[#333] mb-4")
                             ui.label(f"Ready to train, {athlete_name}?").classes(
@@ -398,6 +380,17 @@ def main(session_id: str = None):
                             ui.label(
                                 "AI can make mistakes. About important decisions always consult your coach."
                             ).classes("text-[10px] text-[#333] mt-8")
+                    else:
+                        # Show messages
+                        for msg in state.messages:
+                            if msg["role"] == "user":
+                                with ui.column().classes("msg-user"):
+                                    ui.label(msg["content"]).classes(
+                                        "text-sm leading-relaxed"
+                                    )
+                            else:
+                                with ui.column().classes("msg-bot"):
+                                    ui.markdown(msg["content"]).classes("text-sm")
 
                 # Input Area
                 with ui.column().classes(
@@ -576,12 +569,22 @@ async def send(input_field, container, state: SessionState):
     ui.run_javascript("window.scrollTo(0, document.body.scrollHeight)")
 
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for monitoring."""
+    return Response(
+        content='{"status": "ok", "service": "coach-copilot"}',
+        media_type="application/json",
+    )
+
+
 def run():
-    print("Checking knowledge base...")
+    app_logger.info("Starting Coach Copilot...")
+    app_logger.info("Checking knowledge base...")
     try:
         index_base_knowledge()
     except Exception as e:
-        print(f"Warning: Could not index base knowledge: {e}")
+        app_logger.warning(f"Could not index base knowledge: {e}")
 
     ui.run(
         title="Coach",

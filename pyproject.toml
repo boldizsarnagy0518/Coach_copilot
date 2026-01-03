@@ -27,6 +27,7 @@ dependencies = [
     "openai>=2.14.0",
     "pydantic-ai>=1.39.0",
     "google-api-python-client>=2.0.0",
+    "duckdb>=1.4.3",
 ]
 
 [project.scripts]
