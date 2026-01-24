@@ -55,18 +55,41 @@ Intelligent rescheduling and plan modification.
 - Multi-athlete support with PIN authentication
 - Structured output classification for smart routing
 - Configurable fast/main models for both Ollama and Gemini
+- **Query Reformulation Agent**: Clarifies ambiguous user input before classification, passes clear input unchanged
+- **Smart Error Handling**: Targeted error handling with graceful fallbacks throughout the agent pipeline
+- **RAG Scoring**: Document relevance scoring (0-1 scale), using only top 5 documents for response generation
+- **Prompt Improvements**: Refined classify prompt, renamed greeting → small_talk for better semantic clarity
+- **LangFuse Monitoring**: Full observability with tracing, latency, token usage, and cost tracking
+- **Prompt Management**: Prompts organized in `src/prompts/` directory with `load_prompt()` loader
+- **Clickable Links**: Document sources included in context for LLM to reference
+- **Thinking Display**: Chain-of-thought display showing agent reasoning steps (collapsible 🧠 Thinking)
+- **Chat Sessions**: Session sidebar with new/switch/delete, persisted per-user (last 10 sessions)
+- **Advanced Search**: `crawl_url` tool for deep page extraction using WebBaseLoader
+- **Competition Countdown**: `competition_countdown` tool with weeks/days + peaking advice
+- **UI Layout Improvements**: Centered welcome screen aligned with input area, responsive chat-area width (85% max-width)
+- **Real-time Status**: Live CoT updates showing current step (Understanding → Analyzing → Searching → Writing)
+- **Enhanced Few-Shot**: 17 classify examples, 3 grade examples for better small model accuracy
+- **Lazy Initialization**: Instructor client caching, PydanticAI agent lazy loading for better performance
+- **Message Alignment**: Bot messages left-aligned, user messages right-aligned for chat-like UX
+- **YouTube Data API**: Channel search, video details, playlist listing (10K units/day free tier)
 
 ### Planned
 
-- Vision analysis for form check videos
-- Competition prep countdown scheduler
 - Integration with wearables (RPE auto-detection)
 
 ### Optional Extensions
 
-- **YouTube Data API**: Enable channel search, video listing, metadata access
-- **LangSmith Integration**: Tracing, debugging, and LLM observability
-- **Firecrawl / Advanced Search**: Crawl web pages for deeper research
-- **Thinking Display**: Show agent reasoning steps to build user trust
-- **Clickable Links**: Add source references to responses
-- **Chat Sessions**: Multiple conversation windows with history persistence
+- **Voice Input**: Speech-to-text for hands-free coaching queries
+
+## Framework Considerations
+
+The following frameworks are being evaluated for future iterations to enhance structure and reliability:
+
+- **PydanticAI**:
+
+  - **Why**: Provides a strongly-typed framework for building agents where every input/output is validated by Pydantic schemas.
+  - **Use Case**: Could replace or augment the current node logic to ensure strictly typed state transitions and reduce runtime errors in the agent graph. Useful for complex multi-agent handoffs.
+
+- **Instructor**:
+  - **Why**: A specialized library that patches OpenAI-compatible clients (like Ollama) to enforce structured outputs using Pydantic models.
+  - **Use Case**: Superior for smaller local models (like `qwen2.5:3b`) compared to standard JSON modes. Would significantly improve reliability of the `classify_input` and `grade_documents` nodes by guaranteeing valid JSON schemas and automatically retrying on validation failures.

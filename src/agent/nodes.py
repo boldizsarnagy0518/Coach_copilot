@@ -7,9 +7,21 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
 
 from src.llm import get_llm, get_fast_llm
-from src.rag import search
 from src.agent.state import AgentState
+from src.agent.reformulate_agent import get_reformulate_agent
 from src.tools import ALL_TOOLS
+from src.prompts import SYSTEM_PROMPT, PLAN_PROMPT, GRADE_PROMPT
+
+from typing import Literal
+from src.utils.instructor_client import get_instructor_client
+from src.config import settings
+from src.utils.logger import agent_logger
+
+
+class Grade(BaseModel):
+    """Relevance grade."""
+
+    score: Literal["yes", "no"] = Field(description="Relevance score 'yes' or 'no'")
 
 
 web_search_tool = DuckDuckGoSearchRun()
@@ -35,145 +47,165 @@ class InputClassification(BaseModel):
     """Classification result for user input."""
 
     input_type: str = Field(
-        description="One of: 'greeting' (hello/hi/thanks), 'command' (calculations, sheet operations), 'question' (needs knowledge lookup)"
+        description="One of: 'small_talk' (greetings/thanks/casual), 'command' (user's data, calculations, sheets), 'question' (general knowledge)"
     )
     reasoning: str = Field(description="One sentence explaining the classification")
 
 
+def reformulate_query(state: AgentState) -> dict:
+    """Reformulate ambiguous queries using PydanticAI agent."""
+    agent_logger.info("Reformulating query with PydanticAI")
+
+    try:
+        # Run the agent synchronously
+        agent = get_reformulate_agent()
+        result = agent.run_sync(state.input)
+        agent_logger.debug(
+            f"Reformulation: changed={result.data.was_changed}, query='{result.data.reformulated}'"
+        )
+        return {"reformulated_input": result.data.reformulated}
+    except Exception as e:
+        agent_logger.warning(f"Reformulate error: {e}, using original input")
+        return {"reformulated_input": state.input}
+
+
 def classify_input(state: AgentState) -> dict:
-    """Classify input using LLM with structured output."""
-    print("---CLASSIFY (LLM)---")
+    """Classify input using heuristics and LLM (via Instructor)."""
+    agent_logger.info("Classifying input")
 
-    llm = get_fast_llm().with_structured_output(InputClassification)
+    query = (state.reformulated_input or state.input).lower().strip()
 
-    prompt_text = f"""Classify this user input for a powerlifting coach assistant:
+    # 1. Fast Heuristics for Small Talk
+    small_talk_keywords = [
+        "hello",
+        "hi",
+        "hey",
+        "hola",
+        "greetings",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "thx",
+        "bye",
+        "goodbye",
+        "cya",
+        "cool",
+        "ok",
+        "okay",
+        "great",
+        "hello there",
+    ]
+    if query in small_talk_keywords or (
+        len(query) < 20 and any(k in query for k in ["hi", "hey", "hello"])
+    ):
+        agent_logger.debug("Classification (Heuristic): small_talk")
+        return {"input_type": "small_talk"}
 
-"{state.input}"
+    # 2. LLM Classification with Instructor
+    agent_logger.debug("Using Instructor for classification")
+
+    try:
+        client = get_instructor_client()
+        prompt_text = f"""Classify this user input for a powerlifting coach assistant:
+
+"{state.reformulated_input or state.input}"
 
 Categories:
-- greeting: ONLY greetings, thanks, goodbye, emojis
-- command: User's data, numbers, weights, PRs, training, sheets, calculations
-- question: ONLY generic knowledge (What is RPE? IPF rules?)
+- small_talk: Greetings, thanks, goodbye, emojis, casual chat (NO data needed)
+- command: ANY request about the USER's personal data, training, sheets, calculations, PRs, schedule, RPE, or competitions
+- question: ONLY general powerlifting knowledge NOT about the user (definitions, rules, techniques)
+
+KEY DISTINCTION: If the user asks about THEIR data ("my", "I", schedule, training block, RPE, history), it's COMMAND.
 
 Examples:
-- "Hello!" → greeting
-- "Thanks!" → greeting
+- "Hello!" → small_talk
+- "Thanks" → small_talk
+- "Goodbye, see you!" → small_talk
 - "What was my best squat?" → command
-- "Summarize my training" → command
-- "What does my latest training sheet show?" → command
-- "highest number" → command
-- "Calculate 150kg plates" → command
+- "Summarize my training block" → command
+- "Calculate IPF points for 500 total" → command
+- "What plates for 180kg?" → command
+- "Show my RPE history" → command
+- "Log my squat 150kg x 3 @ RPE 8" → command
+- "Show my PRs" → command
+- "Record my meet results" → command
+- "Compare my training to competition" → command
 - "What is RPE?" → question
-- "How does periodization work?" → question
+- "How does peaking work?" → question
+- "What are the IPF rules for bench?" → question
 
-When uncertain, default to 'command'.
-"""
-    messages = [HumanMessage(content=prompt_text)]
-    result = llm.invoke(messages)
-    print(f"Classification: {result}")
+When uncertain, default to 'command'."""
 
-    return {"input_type": result.input_type}
+        # Use fast model for classification
+        result = client.chat.completions.create(
+            model=settings.ollama_fast_model,
+            response_model=InputClassification,
+            messages=[{"role": "user", "content": prompt_text}],
+            max_retries=2,
+        )
+        agent_logger.debug(f"Classification: {result}")
+        return {"input_type": result.input_type}
 
-
-def generate_greeting(state: AgentState) -> dict:
-    """Fast response for greetings without tools."""
-    print("---GREETING (FAST)---")
-
-    llm = get_fast_llm()
-    messages = [
-        SystemMessage(
-            content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings."
-        ),
-        HumanMessage(content=state.input),
-    ]
-    response = llm.invoke(messages)
-    return {"answer": _extract_text(response.content)}
+    except Exception as e:
+        agent_logger.warning(f"Classify error: {e}, defaulting to command")
+        # Fallback: reasonable defaults
+        if any(
+            w in query for w in ["my", "i", "schedule", "training", "sheet", "program"]
+        ):
+            return {"input_type": "command"}
+        return {"input_type": "question"}
 
 
-SYSTEM_PROMPT = """You are an elite powerlifting coach assistant.
+def generate_small_talk(state: AgentState) -> dict:
+    """Fast response for greetings and casual chat without tools."""
+    agent_logger.info("Generating small talk response")
 
-## Guidelines
-- Be direct, technical, and concise
-- Use metric units (kg, cm) exclusively
-- Reference IPF rules when discussing competition standards
-- Structure responses with bullet points for programs/lists, markdown for clarity
-- For calculations, show your work briefly
+    try:
+        llm = get_fast_llm()
+        messages = [
+            SystemMessage(
+                content="You are a friendly powerlifting coach assistant. Respond briefly and warmly to greetings and casual messages."
+            ),
+            HumanMessage(content=state.input),
+        ]
+        response = llm.invoke(messages)
+        return {"answer": _extract_text(response.content)}
+    except Exception as e:
+        agent_logger.error(f"Small talk error: {e}")
+        return {
+            "answer": f"I'm having trouble connecting to my brain (LLM Error: {str(e)[:100]}). Please check if Ollama is running and the model is pulled."
+        }
 
-## Safety
-- Always recommend consulting a medical professional for injury-related concerns
-- Emphasize proper form and progressive overload principles
-- Flag if a request involves potentially dangerous loads or techniques
 
-## Knowledge Priority
-1. User's uploaded documents and training logs
-2. Personal notes and video transcripts from context
-3. IPF rulebook and general powerlifting knowledge
-4. Web search results (if other sources insufficient)
+def generate(state: AgentState) -> dict:
+    """Generate answer."""
+    agent_logger.info("Generating response")
+    question = state.input
+    context = state.context
+    plan = state.plan
+    history = state.chat_history
 
-## Data Source Guidelines
-- **Training Plan/History**: ALWAYS use `read_training_sheet` or `list_training_sheets` when the user asks about:
-  - "training block", "latest workout", "schedule", "volume", "intensity", "RPEs"
-  - "what did I do last week?", "how is my bench progressing?"
-- **YouTube**: Use `load_youtube_transcript` for specific video questions or technique advice if context exists.
+    try:
+        llm = get_llm()
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+        ]
+        messages.extend(history)
+        messages.append(
+            HumanMessage(
+                content=f"Plan:\n{plan}\n\nContext:\n{context}\n\nQuestion: {question}"
+            )
+        )
 
-## Training Sheet Structure
-**Sheet naming**: CnumberBnumber format (e.g., C3B6 = Cycle 3 Block 6). Higher numbers = newer.
-
-**Layout**:
-- **Rows 1-6/8**: General info (Name, Period/Dátum, Payment date, etc.)
-- **Weeks**: Arranged HORIZONTALLY (Week 1, Week 2, etc. side-by-side in columns)
-- **Days**: Arranged VERTICALLY (Monday/Hétfő, Tuesday/Kedd, etc. stacked in rows)
-- **Day header**: 7 merged cells next to "Gyakorlat" column contain the day name
-- **Structure is FIXED for each week** (same column layout repeats)
-
-**Column Definitions** (repeat for each week):
-- **Gyakorlat** = Exercise Name
-- **Sor.** = Sets (Sorozat)
-- **Ism.** = Reps (Ismétlés)
-- **Súly** = Planned Weight (kg)
-- **RPE** = Rate of Perceived Exertion (1-10 scale)
-- **Tény** = Actual Weight Used (kg)
-- **Megjegyzés** = Notes/Comments
-
-## Tool Usage Guidelines
-- If a tool returns "No training data found" or an error, **DO NOT** call the same tool again with the same arguments.
-- If you have already called a tool and got a result, use that result to formulate your answer. **Do not call the tool again.**
-- Do not loop. If you are stuck, ask the user for clarification.
-- When reading training sheets, use **empty sheet_name** (like `sheet_name=''`) to get the default/latest sheet. Do NOT guess sheet names like 'C3B6'."""
-
-PLAN_PROMPT = """You are a powerlifting coach planning how to answer a user's request.
-
-Analyze the request and create a structured retrieval plan.
-
-## Output Format
-Return a brief plan with:
-- **Keywords**: 3-5 key terms to search for in documents
-- **Data needed**: What specific information is required (e.g., training logs, RPE data, PR history)
-- **Calculation**: Any formulas or math needed (IPF points, percentages, plate loading)
-
-## Example
-Request: "What should my squat opener be based on my recent training?"
-
-Plan:
-- Keywords: squat, training, RPE, max, opener
-- Data needed: Recent squat sessions, RPE ratings, rep maxes
-- Calculation: Calculate ~90% of estimated 1RM for conservative opener
-
----
-Request: {question}"""
-
-GRADE_PROMPT = """Assess if the retrieved document is relevant to answering the user's powerlifting question.
-
-Document is RELEVANT if it contains:
-- Direct information about the topic asked
-- Training data, exercises, or metrics mentioned in the question  
-- Rules or guidelines applicable to the question
-
-Document is NOT RELEVANT if it:
-- Discusses completely unrelated topics
-- Contains only generic information with no specific connection
-
-Respond with ONLY 'yes' or 'no'. No other text."""
+        response = llm.invoke(messages)
+        return {"answer": _extract_text(response.content)}
+    except Exception as e:
+        print(f"---GENERATE ERROR: {e}---")
+        return {
+            "answer": f"I encountered an error generating the response: {str(e)[:200]}. Please check your configuration."
+        }
 
 
 def plan_step(state: AgentState) -> dict:
@@ -192,20 +224,35 @@ def plan_step(state: AgentState) -> dict:
 
 
 def retrieve(state: AgentState) -> dict:
-    """Retrieve documents from vector store."""
+    """Retrieve documents from vector store with relevance scoring."""
     print("---RETRIEVE---")
-    question = state.input
+
+    # Use reformulated input if available
+    question = state.reformulated_input or state.input
 
     # Enhance search query with plan keywords
     print(f"Executing Plan:\n{state.plan}")
 
-    # Extract keywords from plan to enhance retrieval
     enhanced_query = question
     if state.plan:
-        # Combine question with plan for better semantic search
         enhanced_query = f"{question} {state.plan}"
 
-    context_text = search(enhanced_query)
+    try:
+        # Use scored search with top 5 documents
+        from src.rag import search_with_scores, format_scored_results
+
+        results = search_with_scores(enhanced_query)
+        context_text = format_scored_results(results)
+
+        if results:
+            print(
+                f"---RETRIEVED {len(results)} docs, scores: {[f'{s:.2f}' for _, s in results]}---"
+            )
+    except Exception as e:
+        print(f"---RETRIEVE ERROR: {e}, falling back to basic search---")
+        from src.rag import search
+
+        context_text = search(enhanced_query)
 
     # Search uploaded documents if available
     if state.chat_store:
@@ -225,35 +272,49 @@ def retrieve(state: AgentState) -> dict:
 
 
 def grade_documents(state: AgentState) -> dict:
-    """Grade relevance of retrieved documents."""
-    print("---CHECK RELEVANCE---")
+    """Grade relevance of retrieved documents using Instructor."""
+    print("---CHECK RELEVANCE (Instructor)---")
     if state.web_search_needed:
         return {"web_search_needed": True}  # Already failed at retrieve step
 
     question = state.input
     context = state.context
 
-    llm = get_llm()
-    grader_prompt = ChatPromptTemplate.from_messages(
-        [
-            ("system", GRADE_PROMPT),
-            (
-                "human",
-                "Retrieved document: \n\n {context} \n\n User question: {question}",
-            ),
-        ]
-    )
-
-    grader = grader_prompt | llm
-    response = grader.invoke({"question": question, "context": context})
-    score = _extract_text(response.content).strip().lower()
-
-    if score == "yes":
-        print("---DOCUMENTS RELEVANT---")
-        return {"web_search_needed": False}
-    else:
-        print("---DOCUMENTS NOT RELEVANT---")
+    # Skip grading if context is empty
+    if not context or not context.strip():
         return {"web_search_needed": True}
+
+    try:
+        client = get_instructor_client()
+
+        # We construct the prompt content manually for the message
+        prompt_content = f"""{GRADE_PROMPT}
+
+Retrieved document:
+{context}
+
+User question: {question}"""
+
+        grade = client.chat.completions.create(
+            model=settings.ollama_fast_model,  # Use fast model for grading
+            response_model=Grade,
+            messages=[{"role": "user", "content": prompt_content}],
+            max_retries=2,
+        )
+
+        score = grade.score
+        print(f"Grade: {score}")
+
+        if score == "yes":
+            print("---DOCUMENTS RELEVANT---")
+            return {"web_search_needed": False}
+        else:
+            print("---DOCUMENTS NOT RELEVANT---")
+            return {"web_search_needed": True}
+
+    except Exception as e:
+        print(f"---GRADING ERROR: {e}, assuming relevant---")
+        return {"web_search_needed": False}
 
 
 def web_search(state: AgentState) -> dict:
@@ -276,29 +337,6 @@ def web_search(state: AgentState) -> dict:
         return {"context": f"Web Search Results:\n{results}"}
     except Exception as e:
         return {"context": f"Web search failed: {e}"}
-
-
-def generate(state: AgentState) -> dict:
-    """Generate answer."""
-    print("---GENERATE---")
-    question = state.input
-    context = state.context
-    plan = state.plan
-    history = state.chat_history
-
-    llm = get_llm()
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-    ]
-    messages.extend(history)
-    messages.append(
-        HumanMessage(
-            content=f"Plan:\n{plan}\n\nContext:\n{context}\n\nQuestion: {question}"
-        )
-    )
-
-    response = llm.invoke(messages)
-    return {"answer": _extract_text(response.content)}
 
 
 def agent_with_tools(state: AgentState) -> dict:
@@ -328,12 +366,18 @@ You have access to the following tools:
 - list_training_sheets: List available training sheets
 - load_youtube_transcript: Load transcript from a YouTube video
 - search_web: Search the web for information
+- log_rpe: Log RPE (Rate of Perceived Exertion) for a workout set
+- get_rpe_history: Get RPE history for exercises over time
+- record_meet_result: Record powerlifting competition results
+- get_pr_history: Get personal record (PR) progression
+- compare_to_competition: Compare training to competition results
 
 CRITICAL RULES:
 1. For GREETINGS ("Hello", "Hi"): DO NOT USE ANY TOOLS. Just reply friendly.
 2. If you already received tool results in the conversation, USE THAT DATA to answer. DO NOT call the same tool again.
 3. If you have enough information to answer, RESPOND DIRECTLY without calling tools.
-4. Only call a tool if you genuinely lack the information needed."""
+4. Only call a tool if you genuinely lack the information needed.
+5. For RPE history questions, use get_rpe_history (NOT training sheets)."""
         ),
     ]
     messages.extend(history)
